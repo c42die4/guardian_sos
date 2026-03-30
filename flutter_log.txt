@@ -1,0 +1,21 @@
+Launching lib\main.dart on SM A336E in debug mode...
+Running Gradle task 'assembleDebug'...                          
+e: file:///C:/dev/guardian_sos/android/app/src/main/kotlin/com/cyberwarriors/guardian_sos/MainActivity.kt:3:8 Unresolved reference 'io'.
+e: file:///C:/dev/guardian_sos/android/app/src/main/kotlin/com/cyberwarriors/guardian_sos/MainActivity.kt:5:21 Unresolved reference 'FlutterActivity'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1m 14s
+Running Gradle task 'assembleDebug'...                             75,4s
+Error: Gradle task assembleDebug failed with exit code 1

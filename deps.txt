@@ -1,0 +1,34 @@
+> Task :gradle:checkKotlinGradlePluginConfigurationErrors
+> Task :gradle:compileKotlin UP-TO-DATE
+> Task :gradle:compileJava NO-SOURCE
+> Task :gradle:compileGroovy NO-SOURCE
+> Task :gradle:pluginDescriptors UP-TO-DATE
+> Task :gradle:processResources UP-TO-DATE
+> Task :gradle:classes UP-TO-DATE
+> Task :gradle:jar UP-TO-DATE
+
+> Task :app:dependencies
+
+------------------------------------------------------------
+Project ':app'
+------------------------------------------------------------
+
+debugCompileClasspath - Compile classpath for '/debug'.
++--- org.jetbrains.kotlin:kotlin-stdlib:2.1.0
+|    \--- org.jetbrains:annotations:13.0
++--- io.flutter:armeabi_v7a_debug:1.0.0-052f31d115eceda8cbff1b3481fcde4330c4ae12
++--- io.flutter:arm64_v8a_debug:1.0.0-052f31d115eceda8cbff1b3481fcde4330c4ae12
++--- io.flutter:x86_64_debug:1.0.0-052f31d115eceda8cbff1b3481fcde4330c4ae12
++--- androidx.multidex:multidex:2.0.1
++--- org.jetbrains.kotlin:kotlin-stdlib:{strictly 2.1.0} -> 2.1.0 (c)
++--- io.flutter:armeabi_v7a_debug:{strictly 1.0.0-052f31d115eceda8cbff1b3481fcde4330c4ae12} -> 1.0.0-052f31d115eceda8cbff1b3481fcde4330c4ae12 (c)
++--- io.flutter:arm64_v8a_debug:{strictly 1.0.0-052f31d115eceda8cbff1b3481fcde4330c4ae12} -> 1.0.0-052f31d115eceda8cbff1b3481fcde4330c4ae12 (c)
++--- io.flutter:x86_64_debug:{strictly 1.0.0-052f31d115eceda8cbff1b3481fcde4330c4ae12} -> 1.0.0-052f31d115eceda8cbff1b3481fcde4330c4ae12 (c)
++--- androidx.multidex:multidex:{strictly 2.0.1} -> 2.0.1 (c)
+\--- org.jetbrains:annotations:{strictly 13.0} -> 13.0 (c)
+
+(c) - A dependency constraint, not a dependency. The dependency affected by the constraint occurs elsewhere in the tree.
+A web-based, searchable dependency report is available by adding the --scan option.
+
+BUILD SUCCESSFUL in 2s
+6 actionable tasks: 2 executed, 4 up-to-date
