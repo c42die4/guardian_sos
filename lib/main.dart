@@ -43,6 +43,7 @@ class _MainSwitcherState extends State<MainSwitcher> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(isOfficerMode ? "OFFICER ON-DUTY" : "GUARDIAN SOS"),
         actions: [
@@ -59,6 +60,9 @@ class _MainSwitcherState extends State<MainSwitcher> {
   }
 }
 
+// ─────────────────────────────────────────────
+// SOS SCREEN
+// ─────────────────────────────────────────────
 class SOSScreen extends StatefulWidget {
   const SOSScreen({super.key});
   @override
@@ -122,14 +126,9 @@ class _SOSScreenState extends State<SOSScreen>
       Position pos = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
 
-      final prefs = await SharedPreferences.getInstance();
-      final name = _nameController.text.trim();
-      if (name.isNotEmpty) {
-        await prefs.setString('name', name);
-      }
-
       await FirebaseFirestore.instance.collection('alerts').add({
-        'userName': name.isEmpty ? "Unknown" : name,
+        'userName':
+            _nameController.text.isEmpty ? "User" : _nameController.text,
         'lat': pos.latitude,
         'lng': pos.longitude,
         'status': 'ACTIVE',
@@ -234,6 +233,9 @@ class _SOSScreenState extends State<SOSScreen>
   }
 }
 
+// ─────────────────────────────────────────────
+// OFFICER DASHBOARD
+// ─────────────────────────────────────────────
 class OfficerDashboard extends StatefulWidget {
   const OfficerDashboard({super.key});
   @override
@@ -245,42 +247,41 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   final AudioPlayer _player = AudioPlayer();
   int _lastCount = 0;
 
-  void _showResolveDialog(BuildContext context, QueryDocumentSnapshot doc) {
-    var data = doc.data() as Map<String, dynamic>;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        title: const Text('🚨 Active Alert'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Name: ${data['userName'] ?? 'Unknown'}'),
-            const SizedBox(height: 8),
-            Text('Lat: ${(data['lat'] as double).toStringAsFixed(5)}'),
-            Text('Lng: ${(data['lng'] as double).toStringAsFixed(5)}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('CLOSE', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            onPressed: () async {
-              await FirebaseFirestore.instance
-                  .collection('alerts')
-                  .doc(doc.id)
-                  .update({'status': 'RESOLVED'});
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('MARK RESOLVED'),
-          ),
-        ],
-      ),
-    );
+  Map<String, dynamic>? _selectedAlert;
+  String? _selectedAlertId;
+  bool _panelOpen = false;
+
+  void _selectAlert(String id, Map<String, dynamic> data) {
+    setState(() {
+      _selectedAlertId = id;
+      _selectedAlert = data;
+      _panelOpen = false;
+    });
+    _mapCtrl.move(LatLng(data['lat'], data['lng']), 17.0);
+  }
+
+  void _navigateTo(Map<String, dynamic> data) {
+    launchUrl(Uri.parse('google.navigation:q=${data['lat']},${data['lng']}'));
+  }
+
+  Future<void> _resolveAlert(String id) async {
+    await FirebaseFirestore.instance
+        .collection('alerts')
+        .doc(id)
+        .update({'status': 'RESOLVED'});
+    setState(() {
+      _selectedAlert = null;
+      _selectedAlertId = null;
+    });
+  }
+
+  String _timeAgo(dynamic timestamp) {
+    if (timestamp == null) return "Just now";
+    final dt = (timestamp as Timestamp).toDate();
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return "${diff.inSeconds}s ago";
+    if (diff.inMinutes < 60) return "${diff.inMinutes}m ago";
+    return "${diff.inHours}h ago";
   }
 
   @override
@@ -289,6 +290,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       stream: FirebaseFirestore.instance
           .collection('alerts')
           .where('status', isEqualTo: 'ACTIVE')
+          .orderBy('timestamp', descending: false)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -307,6 +309,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
 
         return Stack(
           children: [
+            // ── MAP ──
             FlutterMap(
               mapController: _mapCtrl,
               options: const MapOptions(
@@ -317,39 +320,44 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.cyberwarriors.sos'),
                 MarkerLayer(
-                    markers: alerts.map((doc) {
-                  var data = doc.data() as Map<String, dynamic>;
-                  return Marker(
+                  markers: alerts.map((doc) {
+                    var data = doc.data() as Map<String, dynamic>;
+                    final isSelected = doc.id == _selectedAlertId;
+                    return Marker(
                       point: LatLng(data['lat'], data['lng']),
-                      width: 100,
+                      width: 60,
                       height: 70,
                       child: GestureDetector(
-                        onTap: () => _showResolveDialog(context, doc),
+                        onTap: () => _selectAlert(doc.id, data),
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.warning,
-                                color: Colors.red, size: 40),
+                            Icon(Icons.warning,
+                                color: isSelected ? Colors.orange : Colors.red,
+                                size: isSelected ? 48 : 40),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
+                                  horizontal: 4, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Colors.black87,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                data['userName'] ?? 'Unknown',
+                                data['userName'] ?? 'User',
                                 style: const TextStyle(
-                                    color: Colors.white, fontSize: 11),
+                                    fontSize: 10, color: Colors.white),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ),
-                      ));
-                }).toList()),
+                      ),
+                    );
+                  }).toList(),
+                ),
               ],
             ),
+
+            // ── NO ALERTS MESSAGE ──
             if (alerts.isEmpty)
               const Center(
                 child: Card(
@@ -361,43 +369,195 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                   ),
                 ),
               ),
+
+            // ── TOP ALERT COUNT BANNER ──
             if (alerts.isNotEmpty)
               Positioned(
                 top: 20,
                 left: 20,
                 right: 20,
-                child: Card(
-                  color: Colors.red[900],
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Text(
-                      "🚨 ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''} — Tap marker to resolve",
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
+                child: GestureDetector(
+                  onTap: () => setState(() => _panelOpen = !_panelOpen),
+                  child: Card(
+                    color: Colors.red[900],
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.list, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Text(
+                            "🚨 ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''} — Tap to view list",
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            if (alerts.isNotEmpty)
+
+            // ── SELECTED ALERT POPUP ──
+            if (_selectedAlert != null)
               Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            padding: const EdgeInsets.all(20)),
-                        onPressed: () => launchUrl(Uri.parse(
-                            'google.navigation:q=${alerts.first['lat']},${alerts.first['lng']}')),
-                        child: const Text("NAVIGATE TO EMERGENCY",
-                            style: TextStyle(fontSize: 16)),
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Card(
+                      color: Colors.grey[900],
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.warning,
+                                    color: Colors.red, size: 28),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _selectedAlert!['userName'] ?? 'User',
+                                    style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () =>
+                                      setState(() => _selectedAlert = null),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              "📍 ${_selectedAlert!['lat'].toStringAsFixed(5)}, ${_selectedAlert!['lng'].toStringAsFixed(5)}",
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                            Text(
+                              "⏱ ${_timeAgo(_selectedAlert!['timestamp'])}",
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.navigation),
+                                    label: const Text("NAVIGATE"),
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        padding: const EdgeInsets.all(14)),
+                                    onPressed: () =>
+                                        _navigateTo(_selectedAlert!),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.check_circle),
+                                    label: const Text("RESOLVE"),
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                        padding: const EdgeInsets.all(14)),
+                                    onPressed: () =>
+                                        _resolveAlert(_selectedAlertId!),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  )),
+                  ),
+                ),
+              ),
+
+            // ── SLIDE-DOWN ALERT LIST PANEL ──
+            if (_panelOpen && alerts.isNotEmpty)
+              Positioned(
+                top: 90,
+                left: 16,
+                right: 16,
+                child: Card(
+                  color: Colors.grey[900],
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Row(
+                          children: [
+                            const Text("Active Alerts",
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                            const Spacer(),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () =>
+                                  setState(() => _panelOpen = false),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 300),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: alerts.length,
+                          itemBuilder: (context, index) {
+                            var doc = alerts[index];
+                            var data = doc.data() as Map<String, dynamic>;
+                            final isSelected = doc.id == _selectedAlertId;
+                            return ListTile(
+                              leading: Icon(Icons.warning,
+                                  color:
+                                      isSelected ? Colors.orange : Colors.red),
+                              title: Text(data['userName'] ?? 'User',
+                                  style: TextStyle(
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal)),
+                              subtitle: Text(_timeAgo(data['timestamp'])),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.navigation,
+                                        color: Colors.blue),
+                                    onPressed: () {
+                                      _selectAlert(doc.id, data);
+                                      _navigateTo(data);
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.check_circle,
+                                        color: Colors.green),
+                                    onPressed: () => _resolveAlert(doc.id),
+                                  ),
+                                ],
+                              ),
+                              onTap: () => _selectAlert(doc.id, data),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         );
       },
