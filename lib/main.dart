@@ -48,7 +48,7 @@ class _MainSwitcherState extends State<MainSwitcher> {
         actions: [
           Switch(
               value: isOfficerMode,
-              activeColor: Colors.blueAccent,
+              activeThumbColor: Colors.blueAccent,
               onChanged: (v) => setState(() => isOfficerMode = v)),
           const Icon(Icons.security),
           const SizedBox(width: 10),
@@ -77,6 +77,7 @@ class _SOSScreenState extends State<SOSScreen>
   void initState() {
     super.initState();
     _loadProfile();
+    _requestLocationPermission();
     _controller =
         AnimationController(vsync: this, duration: const Duration(seconds: 3))
           ..addListener(() => setState(() => _progress = _controller.value));
@@ -89,27 +90,71 @@ class _SOSScreenState extends State<SOSScreen>
     });
   }
 
+  Future<void> _requestLocationPermission() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                "Location permission denied. Please enable it in settings.")));
+      }
+    }
+  }
+
   void _triggerSOS() async {
     _stopHolding();
     Vibration.vibrate(duration: 1000);
-    Position pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
-    await FirebaseFirestore.instance.collection('alerts').add({
-      'userName': _nameController.text.isEmpty ? "User" : _nameController.text,
-      'lat': pos.latitude,
-      'lng': pos.longitude,
-      'status': 'ACTIVE',
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text("🚨 SOS SENT 🚨")));
+
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text("Location permission required to send SOS.")));
+        }
+        return;
+      }
+
+      Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+
+      final prefs = await SharedPreferences.getInstance();
+      final name = _nameController.text.trim();
+      if (name.isNotEmpty) {
+        await prefs.setString('name', name);
+      }
+
+      await FirebaseFirestore.instance.collection('alerts').add({
+        'userName': name.isEmpty ? "Unknown" : name,
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'status': 'ACTIVE',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text("🚨 SOS SENT 🚨")));
+      }
+    } catch (e) {
+      debugPrint("SOS Error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Failed to send SOS: $e")));
+      }
+    }
   }
 
   void _startHolding() {
     setState(() => _isHolding = true);
     _controller.forward();
-    _timer = Timer(
-        const Duration(seconds: 3), () => _isHolding ? _triggerSOS() : null);
+    _timer = Timer(const Duration(seconds: 3), () {
+      if (_isHolding) _triggerSOS();
+    });
   }
 
   void _stopHolding() {
@@ -122,42 +167,68 @@ class _SOSScreenState extends State<SOSScreen>
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(30.0),
-      child: Column(
-        children: [
-          TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                  labelText: "Your Name", border: OutlineInputBorder())),
-          const Spacer(),
-          GestureDetector(
-            onTapDown: (_) => _startHolding(),
-            onTapUp: (_) => _stopHolding(),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                    width: 250,
-                    height: 250,
-                    child: CircularProgressIndicator(
-                        value: _progress, strokeWidth: 15, color: Colors.red)),
-                Container(
-                  width: 200,
-                  height: 200,
-                  decoration: const BoxDecoration(
-                      color: Colors.red, shape: BoxShape.circle),
-                  child: const Center(
-                      child: Text("SOS",
-                          style: TextStyle(
-                              fontSize: 40, fontWeight: FontWeight.bold))),
-                ),
-              ],
+    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    final buttonSize = keyboardOpen ? 150.0 : 200.0;
+    final indicatorSize = keyboardOpen ? 185.0 : 250.0;
+
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      child: Padding(
+        padding: const EdgeInsets.all(30.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                    labelText: "Your Name", border: OutlineInputBorder())),
+            SizedBox(height: keyboardOpen ? 20 : 60),
+            GestureDetector(
+              onLongPressStart: (_) => _startHolding(),
+              onLongPressEnd: (_) => _stopHolding(),
+              onLongPressCancel: () => _stopHolding(),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                      width: indicatorSize,
+                      height: indicatorSize,
+                      child: CircularProgressIndicator(
+                          value: _progress,
+                          strokeWidth: 15,
+                          color: Colors.red)),
+                  Container(
+                    width: buttonSize,
+                    height: buttonSize,
+                    decoration: BoxDecoration(
+                        color: _isHolding ? Colors.red[800] : Colors.red,
+                        shape: BoxShape.circle),
+                    child: Center(
+                        child: Text("HOLD\nSOS",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: keyboardOpen ? 24 : 36,
+                                fontWeight: FontWeight.bold))),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const Spacer(),
-        ],
+            const SizedBox(height: 20),
+            Text(
+              _isHolding ? "Keep holding..." : "Hold for 3 seconds to send SOS",
+              style: TextStyle(
+                  color: _isHolding ? Colors.red : Colors.grey, fontSize: 16),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -174,6 +245,44 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   final AudioPlayer _player = AudioPlayer();
   int _lastCount = 0;
 
+  void _showResolveDialog(BuildContext context, QueryDocumentSnapshot doc) {
+    var data = doc.data() as Map<String, dynamic>;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('🚨 Active Alert'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Name: ${data['userName'] ?? 'Unknown'}'),
+            const SizedBox(height: 8),
+            Text('Lat: ${(data['lat'] as double).toStringAsFixed(5)}'),
+            Text('Lng: ${(data['lng'] as double).toStringAsFixed(5)}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CLOSE', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () async {
+              await FirebaseFirestore.instance
+                  .collection('alerts')
+                  .doc(doc.id)
+                  .update({'status': 'RESOLVED'});
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('MARK RESOLVED'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
@@ -182,8 +291,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
           .where('status', isEqualTo: 'ACTIVE')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         var alerts = snapshot.data!.docs;
 
         if (alerts.length > _lastCount) {
@@ -211,25 +321,82 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                   var data = doc.data() as Map<String, dynamic>;
                   return Marker(
                       point: LatLng(data['lat'], data['lng']),
-                      width: 50,
-                      height: 50,
-                      child: const Icon(Icons.warning,
-                          color: Colors.red, size: 40));
+                      width: 100,
+                      height: 70,
+                      child: GestureDetector(
+                        onTap: () => _showResolveDialog(context, doc),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.warning,
+                                color: Colors.red, size: 40),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.black87,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                data['userName'] ?? 'Unknown',
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 11),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ));
                 }).toList()),
               ],
             ),
+            if (alerts.isEmpty)
+              const Center(
+                child: Card(
+                  color: Colors.black54,
+                  child: Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Text("No active alerts",
+                        style: TextStyle(fontSize: 18, color: Colors.white)),
+                  ),
+                ),
+              ),
             if (alerts.isNotEmpty)
               Positioned(
-                  bottom: 20,
-                  left: 20,
-                  right: 20,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        padding: const EdgeInsets.all(20)),
-                    onPressed: () => launchUrl(Uri.parse(
-                        'google.navigation:q=${alerts.first['lat']},${alerts.first['lng']}')),
-                    child: const Text("NAVIGATE TO EMERGENCY"),
+                top: 20,
+                left: 20,
+                right: 20,
+                child: Card(
+                  color: Colors.red[900],
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Text(
+                      "🚨 ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''} — Tap marker to resolve",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            if (alerts.isNotEmpty)
+              Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            padding: const EdgeInsets.all(20)),
+                        onPressed: () => launchUrl(Uri.parse(
+                            'google.navigation:q=${alerts.first['lat']},${alerts.first['lng']}')),
+                        child: const Text("NAVIGATE TO EMERGENCY",
+                            style: TextStyle(fontSize: 16)),
+                      ),
+                    ),
                   )),
           ],
         );
