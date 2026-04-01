@@ -1,0 +1,168 @@
+Launching lib\main.dart on SM A336E in debug mode...
+Running Gradle task 'assembleDebug'...                              7,1s
+ΓêÜ Built build\app\outputs\flutter-apk\app-debug.apk
+Installing build\app\outputs\flutter-apk\app-debug.apk...           5,0s
+D/FlutterJNI( 6565): Beginning load of flutter...
+D/FlutterJNI( 6565): flutter (null) was loaded normally!
+I/flutter ( 6565): [IMPORTANT:flutter/shell/platform/android/android_context_vk_impeller.cc(62)] Using the Impeller rendering backend (Vulkan).
+D/FlutterGeolocator( 6565): Attaching Geolocator to activity
+D/FlutterRenderer( 6565): Width is zero. 0,0
+D/FlutterGeolocator( 6565): Creating service.
+D/FlutterGeolocator( 6565): Binding to location service.
+D/FlutterRenderer( 6565): Width is zero. 0,0
+D/FlutterJNI( 6565): Sending viewport metrics to the engine.
+D/FlutterGeolocator( 6565): Geolocator foreground service connected
+D/FlutterGeolocator( 6565): Initializing Geolocator services
+D/FlutterGeolocator( 6565): Flutter engine connected. Connected engine count 1
+D/FlutterJNI( 6565): Sending viewport metrics to the engine.
+Syncing files to device SM A336E...                             
+W/rs.guardian_sos( 6565): Verification of java.lang.Object com.google.protobuf.GeneratedMessageLite.newMessageInfo(com.google.protobuf.MessageLite, java.lang.String, java.lang.Object[]) took 120.163ms (49.93 bytecodes/s) (0B arena alloc)
+W/ProviderInstaller( 6565): Failed to report request stats: com.google.android.gms.common.security.ProviderInstallerImpl.reportRequestStats [class android.content.Context, long, long]
+D/nativeloader( 6565): Load /data/app/~~m6Evprh3m8ET52wnq-Ct0A==/com.google.android.gms-An9WX2aBcAQkL9WK3cg_pg==/base.apk!/lib/arm64-v8a/libconscrypt_gmscore_jni.so using class loader ns clns-11 (caller=/data/app/~~m6Evprh3m8ET52wnq-Ct0A==/com.google.android.gms-An9WX2aBcAQkL9WK3cg_pg==/base.apk): ok
+V/NativeCrypto( 6565): Registering com/google/android/gms/org/conscrypt/NativeCrypto's 334 native methods...
+I/rs.guardian_sos( 6565): hiddenapi: Accessing hidden method Ljava/security/spec/ECParameterSpec;->getCurveName()Ljava/lang/String; (runtime_flags=0, domain=core-platform, api=unsupported) from Lcom/google/android/gms/org/conscrypt/Platform; (domain=app, TargetSdkVersion=36) using reflection: allowed
+E/GoogleApiManager( 6565): Failed to get service from broker. 
+E/GoogleApiManager( 6565): java.lang.SecurityException: Unknown calling package name 'com.google.android.gms'.
+E/GoogleApiManager( 6565): 	at android.os.Parcel.createExceptionOrNull(Parcel.java:3354)
+E/GoogleApiManager( 6565): 	at android.os.Parcel.createException(Parcel.java:3338)
+E/GoogleApiManager( 6565): 	at android.os.Parcel.readException(Parcel.java:3321)
+E/GoogleApiManager( 6565): 	at android.os.Parcel.readException(Parcel.java:3263)
+E/GoogleApiManager( 6565): 	at bhqm.a(:com.google.android.gms@261133035@26.11.33 (260400-887465546):36)
+E/GoogleApiManager( 6565): 	at bhon.z(:com.google.android.gms@261133035@26.11.33 (260400-887465546):143)
+E/GoogleApiManager( 6565): 	at bgup.run(:com.google.android.gms@261133035@26.11.33 (260400-887465546):42)
+E/GoogleApiManager( 6565): 	at android.os.Handler.handleCallback(Handler.java:995)
+E/GoogleApiManager( 6565): 	at android.os.Handler.dispatchMessage(Handler.java:103)
+E/GoogleApiManager( 6565): 	at cwvx.mr(:com.google.android.gms@261133035@26.11.33 (260400-887465546):1)
+E/GoogleApiManager( 6565): 	at cwvx.dispatchMessage(:com.google.android.gms@261133035@26.11.33 (260400-887465546):5)
+E/GoogleApiManager( 6565): 	at android.os.Looper.loopOnce(Looper.java:273)
+E/GoogleApiManager( 6565): 	at android.os.Looper.loop(Looper.java:363)
+E/GoogleApiManager( 6565): 	at android.os.HandlerThread.run(HandlerThread.java:85)
+W/GoogleApiManager( 6565): Not showing notification since connectionResult is not user-facing: ConnectionResult{statusCode=DEVELOPER_ERROR, resolution=null, message=null, clientMethodKey=null}
+W/FlagRegistrar( 6565): Failed to register com.google.android.gms.providerinstaller#com.cyberwarriors.guardian_sos
+W/FlagRegistrar( 6565): ggtn: 17: 17: API: Phenotype.API is not available on this device. Connection failed with: ConnectionResult{statusCode=DEVELOPER_ERROR, resolution=null, message=null, clientMethodKey=null}
+W/FlagRegistrar( 6565): 	at ggtp.a(:com.google.android.gms@261133035@26.11.33 (260400-887465546):13)
+W/FlagRegistrar( 6565): 	at hgfx.d(:com.google.android.gms@261133035@26.11.33 (260400-887465546):3)
+W/FlagRegistrar( 6565): 	at hgfz.run(:com.google.android.gms@261133035@26.11.33 (260400-887465546):130)
+W/FlagRegistrar( 6565): 	at hgig.execute(:com.google.android.gms@261133035@26.11.33 (260400-887465546):1)
+W/FlagRegistrar( 6565): 	at hggh.f(:com.google.android.gms@261133035@26.11.33 (260400-887465546):1)
+W/FlagRegistrar( 6565): 	at hggh.m(:com.google.android.gms@261133035@26.11.33 (260400-887465546):99)
+W/FlagRegistrar( 6565): 	at hggh.r(:com.google.android.gms@261133035@26.11.33 (260400-887465546):17)
+W/FlagRegistrar( 6565): 	at fylu.hB(:com.google.android.gms@261133035@26.11.33 (260400-887465546):35)
+W/FlagRegistrar( 6565): 	at fkzv.run(:com.google.android.gms@261133035@26.11.33 (260400-887465546):12)
+W/FlagRegistrar( 6565): 	at hgig.execute(:com.google.android.gms@261133035@26.11.33 (260400-887465546):1)
+W/FlagRegistrar( 6565): 	at fkzw.b(:com.google.android.gms@261133035@26.11.33 (260400-887465546):18)
+W/FlagRegistrar( 6565): 	at flal.b(:com.google.android.gms@261133035@26.11.33 (260400-887465546):34)
+W/FlagRegistrar( 6565): 	at flan.d(:com.google.android.gms@261133035@26.11.33 (260400-887465546):25)
+W/FlagRegistrar( 6565): 	at bgry.c(:com.google.android.gms@261133035@26.11.33 (260400-887465546):9)
+W/FlagRegistrar( 6565): 	at bgun.q(:com.google.android.gms@261133035@26.11.33 (260400-887465546):48)
+W/FlagRegistrar( 6565): 	at bgun.d(:com.google.android.gms@261133035@26.11.33 (260400-887465546):10)
+W/FlagRegistrar( 6565): 	at bgun.g(:com.google.android.gms@261133035@26.11.33 (260400-887465546):191)
+W/FlagRegistrar( 6565): 	at bgun.onConnectionFailed(:com.google.android.gms@261133035@26.11.33 (260400-887465546):2)
+W/FlagRegistrar( 6565): 	at bgup.run(:com.google.android.gms@261133035@26.11.33 (260400-887465546):70)
+W/FlagRegistrar( 6565): 	at android.os.Handler.handleCallback(Handler.java:995)
+W/FlagRegistrar( 6565): 	at android.os.Handler.dispatchMessage(Handler.java:103)
+W/FlagRegistrar( 6565): 	at cwvx.mr(:com.google.android.gms@261133035@26.11.33 (260400-887465546):1)
+W/FlagRegistrar( 6565): 	at cwvx.dispatchMessage(:com.google.android.gms@261133035@26.11.33 (260400-887465546):5)
+W/FlagRegistrar( 6565): 	at android.os.Looper.loopOnce(Looper.java:273)
+W/FlagRegistrar( 6565): 	at android.os.Looper.loop(Looper.java:363)
+W/FlagRegistrar( 6565): 	at android.os.HandlerThread.run(HandlerThread.java:85)
+W/FlagRegistrar( 6565): Caused by: bgqf: 17: API: Phenotype.API is not available on this device. Connection failed with: ConnectionResult{statusCode=DEVELOPER_ERROR, resolution=null, message=null, clientMethodKey=null}
+W/FlagRegistrar( 6565): 	at bhnz.a(:com.google.android.gms@261133035@26.11.33 (260400-887465546):15)
+W/FlagRegistrar( 6565): 	at bgsb.a(:com.google.android.gms@261133035@26.11.33 (260400-887465546):1)
+W/FlagRegistrar( 6565): 	at bgry.c(:com.google.android.gms@261133035@26.11.33 (260400-887465546):5)
+W/FlagRegistrar( 6565): 	... 12 more
+I/rs.guardian_sos( 6565): hiddenapi: Accessing hidden method Ldalvik/system/VMStack;->getStackClass2()Ljava/lang/Class; (runtime_flags=0, domain=core-platform, api=unsupported) from Lhatg; (domain=app, TargetSdkVersion=36) using reflection: allowed
+I/ProviderInstaller( 6565): Installed default security provider GmsCore_OpenSSL
+D/ConnectivityManager( 6565): StackLog: [android.net.ConnectivityManager.sendRequestForNetwork(ConnectivityManager.java:4744)] [android.net.ConnectivityManager.registerDefaultNetworkCallbackForUid(ConnectivityManager.java:5469)] [android.net.ConnectivityManager.registerDefaultNetworkCallback(ConnectivityManager.java:5436)] [android.net.ConnectivityManager.registerDefaultNetworkCallback(ConnectivityManager.java:5410)] [io.grpc.android.AndroidChannelBuilder$AndroidChannel.configureNetworkMonitoring(AndroidChannelBuilder.java:217)] [io.grpc.android.AndroidChannelBuilder$AndroidChannel.<init>(AndroidChannelBuilder.java:198)] [io.grpc.android.AndroidChannelBuilder.build(AndroidChannelBuilder.java:169)] [com.google.firebase.firestore.remote.GrpcCallProvider.initChannel(GrpcCallProvider.java:116)] [com.google.firebase.firestore.remote.GrpcCallProvider.lambda$initChannelTask$6$com-google-firebase-firestore-remote-GrpcCallProvider(GrpcCallProvider.java:242)] [com.google.firebase.firestore.remote.GrpcCallProvider$$ExternalSyntheticLambda4.call(D8$$SyntheticClass:0)] [com.google.android.gms.tasks.zzz.run(com.google.android.gms:play-services-tasks@@18.1.0:1)] [com.google.firebase.firestore.util.ThrottledForwardingExecutor.lambda$execute$0$com-google-firebase-firestore-util-ThrottledForwardingExecutor(ThrottledForwardingExecutor.java:54)] [com.google.firebase.firestore.util.ThrottledForwardingExecutor$$ExternalSyntheticLambda0.run(D8$$SyntheticClass:0)] [java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1154)] [java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:652)] [java.lang.Thread.run(Thread.java:1564)]
+I/rs.guardian_sos( 6565): hiddenapi: Accessing hidden field Ljava/net/Socket;->impl:Ljava/net/SocketImpl; (runtime_flags=0, domain=core-platform, api=unsupported) from Lcom/google/android/gms/org/conscrypt/Platform; (domain=app, TargetSdkVersion=36) using reflection: allowed
+I/rs.guardian_sos( 6565): hiddenapi: Accessing hidden method Ljava/security/spec/ECParameterSpec;->setCurveName(Ljava/lang/String;)V (runtime_flags=0, domain=core-platform, api=unsupported) from Lcom/google/android/gms/org/conscrypt/Platform; (domain=app, TargetSdkVersion=36) using reflection: allowed
+D/ProfileInstaller( 6565): Installing profile for com.cyberwarriors.guardian_sos
+I/VRI[MainActivity]@d792fc7( 6565): call setFrameRateCategory for touch hint category=high hint, reason=touch, vri=VRI[MainActivity]@d792fc7
+W/rs.guardian_sos( 6565): userfaultfd: MOVE ioctl seems unsupported: Try again
+E/GoogleApiManager( 6565): Failed to get service from broker. 
+E/GoogleApiManager( 6565): java.lang.SecurityException: Unknown calling package name 'com.google.android.gms'.
+E/GoogleApiManager( 6565): 	at android.os.Parcel.createExceptionOrNull(Parcel.java:3354)
+E/GoogleApiManager( 6565): 	at android.os.Parcel.createException(Parcel.java:3338)
+E/GoogleApiManager( 6565): 	at android.os.Parcel.readException(Parcel.java:3321)
+E/GoogleApiManager( 6565): 	at android.os.Parcel.readException(Parcel.java:3263)
+E/GoogleApiManager( 6565): 	at bhqm.a(:com.google.android.gms@261133035@26.11.33 (260400-887465546):36)
+E/GoogleApiManager( 6565): 	at bhon.z(:com.google.android.gms@261133035@26.11.33 (260400-887465546):143)
+E/GoogleApiManager( 6565): 	at bgup.run(:com.google.android.gms@261133035@26.11.33 (260400-887465546):42)
+E/GoogleApiManager( 6565): 	at android.os.Handler.handleCallback(Handler.java:995)
+E/GoogleApiManager( 6565): 	at android.os.Handler.dispatchMessage(Handler.java:103)
+E/GoogleApiManager( 6565): 	at cwvx.mr(:com.google.android.gms@261133035@26.11.33 (260400-887465546):1)
+E/GoogleApiManager( 6565): 	at cwvx.dispatchMessage(:com.google.android.gms@261133035@26.11.33 (260400-887465546):5)
+E/GoogleApiManager( 6565): 	at android.os.Looper.loopOnce(Looper.java:273)
+E/GoogleApiManager( 6565): 	at android.os.Looper.loop(Looper.java:363)
+E/GoogleApiManager( 6565): 	at android.os.HandlerThread.run(HandlerThread.java:85)
+W/GoogleApiManager( 6565): Not showing notification since connectionResult is not user-facing: ConnectionResult{statusCode=DEVELOPER_ERROR, resolution=null, message=null, clientMethodKey=null}
+I/VRI[MainActivity]@d792fc7( 6565): call setFrameRateCategory for touch hint category=no preference, reason=boost timeout, vri=VRI[MainActivity]@d792fc7
+I/VRI[MainActivity]@d792fc7( 6565): call setFrameRateCategory for touch hint category=high hint, reason=touch, vri=VRI[MainActivity]@d792fc7
+W/Firestore( 6565): (25.1.4) [Firestore]: Listen for Query(target=Query(alerts where status==ACTIVE and companyId==guardian_sos_demo order by timestamp, __name__);limitType=LIMIT_TO_FIRST) failed: Status{code=FAILED_PRECONDITION, description=The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/guardian-os-80042/firestore/indexes?create_composite=ClBwcm9qZWN0cy9ndWFyZGlhbi1vcy04MDA0Mi9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvYWxlcnRzL2luZGV4ZXMvXxABGg0KCWNvbXBhbnlJZBABGgoKBnN0YXR1cxABGg0KCXRpbWVzdGFtcBABGgwKCF9fbmFtZV9fEAE, cause=null}
+V/MediaPlayer-JNI( 6565): native_setup
+V/MediaPlayerNative( 6565): constructor
+D/AudioSystem( 6565): onNewServiceWithAdapter: media.audio_flinger service obtained 0xb4000078e1312890
+D/AudioSystem( 6565): getService: checking for service media.audio_flinger: 0xb4000079812e41c0
+V/MediaPlayerNative( 6565): setListener
+V/MediaPlayer-JNI( 6565): get_session_id()
+V/MediaPlayer-JNI( 6565): setParameter: key 1400
+V/MediaPlayerNative( 6565): MediaPlayer::setParameter(1400)
+V/MediaPlayer-JNI( 6565): reset
+V/MediaPlayerNative( 6565): reset
+V/MediaPlayer( 6565): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6565): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+V/MediaPlayer-JNI( 6565): setDataSourceFD: fd 192
+V/MediaPlayerNative( 6565): setDataSource(192, 0, 576460752303423487)
+V/MediaPlayer-JNI( 6565): setVolume: left 1.000000  right 1.000000
+V/MediaPlayerNative( 6565): MediaPlayer::setVolume(1.000000, 1.000000)
+V/MediaPlayer-JNI( 6565): setLooping: 0
+V/MediaPlayerNative( 6565): MediaPlayer::setLooping
+V/MediaPlayerNative( 6565): setVideoSurfaceTexture
+V/MediaPlayerNative( 6565): prepareAsync
+V/MediaPlayerNative( 6565): invoke 80
+V/MediaPlayerNative( 6565): message received msg=200, ext1=10973, ext2=0
+W/MediaPlayerNative( 6565): info/warning (10973, 0)
+V/MediaPlayerNative( 6565): message received msg=1, ext1=0, ext2=0
+V/MediaPlayerNative( 6565): MediaPlayer::notify() prepared
+V/MediaPlayerNative( 6565): invoke 76
+V/MediaPlayerNative( 6565): getDuration_l
+V/MediaPlayer-JNI( 6565): getDuration: 5407 (msec)
+V/MediaPlayer-JNI( 6565): getPlaybackSettings: 1.000000 1.000000 2 0
+V/MediaPlayer-JNI( 6565): setPlaybackParams: 1:1.000000 1:1.000000 1:2 1:0
+V/MediaPlayerNative( 6565): setPlaybackSettings: 1.000000 1.000000 2 0
+V/MediaPlayerNative( 6565): message received msg=6, ext1=0, ext2=0
+V/MediaPlayerNative( 6565): Received media started message
+V/MediaPlayerNative( 6565): message received msg=211, ext1=0, ext2=0
+V/MediaPlayerNative( 6565): message received msg=211, ext1=0, ext2=0
+V/MediaPlayerNative( 6565): message received msg=211, ext1=0, ext2=0
+V/MediaPlayerNative( 6565): message received msg=211, ext1=0, ext2=0
+I/VRI[MainActivity]@d792fc7( 6565): call setFrameRateCategory for touch hint category=no preference, reason=boost timeout, vri=VRI[MainActivity]@d792fc7
+V/MediaPlayerNative( 6565): message received msg=2, ext1=0, ext2=0
+V/MediaPlayerNative( 6565): playback complete
+V/MediaPlayerNative( 6565): message received msg=211, ext1=0, ext2=0
+V/MediaPlayer-JNI( 6565): stop
+V/MediaPlayerNative( 6565): stop
+V/MediaPlayerNative( 6565): message received msg=8, ext1=0, ext2=0
+V/MediaPlayer-JNI( 6565): reset
+V/MediaPlayerNative( 6565): reset
+V/MediaPlayer( 6565): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6565): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+V/MediaPlayer( 6565): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6565): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+V/MediaPlayer-JNI( 6565): release
+V/MediaPlayerNative( 6565): setListener
+V/MediaPlayerNative( 6565): disconnect
+V/MediaPlayerNative( 6565): destructor
+V/MediaPlayerNative( 6565): disconnect
+Syncing files to device SM A336E...                                50,3s
+
+Flutter run key commands.
+r Hot reload. 
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on SM A336E is available at: http://127.0.0.1:52640/V23V41gSpEM=/
+The Flutter DevTools debugger and profiler on SM A336E is available at: http://127.0.0.1:52640/V23V41gSpEM=/devtools/?uri=ws://127.0.0.1:52640/V23V41gSpEM=/ws
