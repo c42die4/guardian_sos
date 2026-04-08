@@ -26,6 +26,25 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:293568464040:android:7dacbae7ad39c02ffd2e9d",
+        "android_client_info": {
+          "package_name": "com.cyberwarriors.sos_security"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGApwIGZ1UVQY5Vpdv44QHOwpOrXLogqM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:293568464040:android:d8d8fd0551f75d36fd2e9d",
         "android_client_info": {
           "package_name": "com.example.sos_app"

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -7,9 +8,156 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
+final FlutterLocalNotificationsPlugin _notifications =
+    FlutterLocalNotificationsPlugin();
+
+Future<void> initNotifications() async {
+  const AndroidInitializationSettings androidSettings =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const InitializationSettings settings =
+      InitializationSettings(android: androidSettings);
+  await _notifications.initialize(settings);
+}
+
+Future<void> showAlertNotification(String name, String location) async {
+  final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    'sos_alerts',
+    'SOS Alerts',
+    channelDescription: 'Emergency SOS alerts',
+    importance: Importance.max,
+    priority: Priority.high,
+    sound: const RawResourceAndroidNotificationSound('siren'),
+    playSound: true,
+    enableVibration: true,
+    vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 500]),
+    fullScreenIntent: true,
+  );
+  final NotificationDetails details =
+      NotificationDetails(android: androidDetails);
+  await _notifications.show(
+    0,
+    '🚨 SOS ALERT — $name',
+    '📍 $location',
+    details,
+  );
+}
+
+// ─────────────────────────────────────────────
+// FOREGROUND TASK HANDLER
+// ─────────────────────────────────────────────
+@pragma('vm:entry-point')
+void startCallback() {
+  FlutterForegroundTask.setTaskHandler(LocationTaskHandler());
+}
+
+class LocationTaskHandler extends TaskHandler {
+  String? _alertId;
+  String? _companyId;
+
+  @override
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    try {
+      await Firebase.initializeApp();
+    } catch (e) {
+      debugPrint('Firebase init in task: $e');
+    }
+    _alertId = await FlutterForegroundTask.getData<String>(key: 'alertId');
+    _companyId = await FlutterForegroundTask.getData<String>(key: 'companyId');
+  }
+
+  @override
+  void onRepeatEvent(DateTime timestamp) async {
+    if (_alertId == null) return;
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) return;
+
+      Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+
+      await FirebaseFirestore.instance
+          .collection('alerts')
+          .doc(_alertId)
+          .update({
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      FlutterForegroundTask.updateService(
+        notificationTitle: '🚨 SOS Active',
+        notificationText: 'SOS Active — Sharing your location with officers',
+      );
+    } catch (e) {
+      debugPrint('Location task error: $e');
+    }
+  }
+
+  @override
+  Future<void> onDestroy(DateTime timestamp) async {}
+
+  @override
+  void onNotificationButtonPressed(String id) {}
+
+  @override
+  void onNotificationPressed() {}
+}
+
+// ─────────────────────────────────────────────
+// FOREGROUND SERVICE HELPERS
+// ─────────────────────────────────────────────
+void initForegroundTask() {
+  FlutterForegroundTask.init(
+    androidNotificationOptions: AndroidNotificationOptions(
+      channelId: 'sos_tracking',
+      channelName: 'SOS Tracking',
+      channelDescription: 'Tracks your location during an active SOS',
+      channelImportance: NotificationChannelImportance.HIGH,
+      priority: NotificationPriority.HIGH,
+    ),
+    iosNotificationOptions: const IOSNotificationOptions(
+      showNotification: true,
+      playSound: true,
+    ),
+    foregroundTaskOptions: ForegroundTaskOptions(
+      eventAction: ForegroundTaskEventAction.repeat(30000),
+      autoRunOnBoot: false,
+      allowWakeLock: true,
+      allowWifiLock: true,
+    ),
+  );
+}
+
+Future<void> startLocationService(String alertId, String companyId) async {
+  await FlutterForegroundTask.saveData(key: 'alertId', value: alertId);
+  await FlutterForegroundTask.saveData(key: 'companyId', value: companyId);
+
+  if (await FlutterForegroundTask.isRunningService) {
+    await FlutterForegroundTask.restartService();
+  } else {
+    await FlutterForegroundTask.startService(
+      notificationTitle: '🚨 SOS Active',
+      notificationText: 'Sharing your location with officers...',
+      callback: startCallback,
+    );
+  }
+}
+
+Future<void> stopLocationService() async {
+  await FlutterForegroundTask.stopService();
+}
 
 // ─────────────────────────────────────────────
 // COMPANY CONFIG MODEL
@@ -21,6 +169,7 @@ class CompanyConfig {
   final Color primaryColor;
   final bool isActive;
   final int maxDevices;
+  final String emergencyPhone;
 
   CompanyConfig({
     required this.id,
@@ -29,6 +178,7 @@ class CompanyConfig {
     required this.primaryColor,
     required this.isActive,
     required this.maxDevices,
+    required this.emergencyPhone,
   });
 
   factory CompanyConfig.fromFirestore(String id, Map<String, dynamic> data) {
@@ -45,11 +195,13 @@ class CompanyConfig {
       primaryColor: color,
       isActive: data['isActive'] ?? true,
       maxDevices: data['maxDevices'] ?? 10,
+      emergencyPhone: data['emergencyPhone'] ?? '',
     );
   }
 }
 
 CompanyConfig? currentCompany;
+String currentRole = 'client';
 
 // ─────────────────────────────────────────────
 // HELPERS
@@ -75,6 +227,46 @@ Future<void> saveCompanyId(String companyId) async {
   await prefs.setString('company_id', companyId);
 }
 
+Future<String> getSavedRole() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString('device_role') ?? 'client';
+}
+
+Future<void> saveRole(String role) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('device_role', role);
+}
+
+Future<void> sendWhatsAppAlert({
+  required String phone,
+  required String userName,
+  required double lat,
+  required double lng,
+}) async {
+  final whatsappCheck = Uri.parse('whatsapp://send');
+  if (!await canLaunchUrl(whatsappCheck)) {
+    debugPrint('WhatsApp not installed, skipping alert');
+    return;
+  }
+  String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+  if (cleaned.startsWith('0')) {
+    cleaned = '+27${cleaned.substring(1)}';
+  }
+  cleaned = cleaned.replaceAll('+', '');
+  final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
+  final message = Uri.encodeComponent(
+      '🚨 EMERGENCY ALERT 🚨\n\n'
+      '$userName needs urgent help!\n\n'
+      '📍 Location: $mapsLink\n\n'
+      'Please respond immediately or call emergency services.');
+  final url = 'https://wa.me/$cleaned?text=$message';
+  final uri = Uri.parse(url);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    await Future.delayed(const Duration(seconds: 2));
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -82,6 +274,8 @@ void main() async {
   } catch (e) {
     debugPrint("Firebase Init Error: $e");
   }
+  await initNotifications();
+  initForegroundTask();
   runApp(const SOSApp());
 }
 
@@ -91,6 +285,7 @@ class SOSApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: 'Secure Response',
       theme: ThemeData(brightness: Brightness.dark, primarySwatch: Colors.red),
       home: const AppEntry(),
     );
@@ -129,10 +324,12 @@ class _AppEntryState extends State<AppEntry> {
       if (!doc.exists) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('company_id');
+        await prefs.remove('device_role');
         setState(() => _loading = false);
         return;
       }
       currentCompany = CompanyConfig.fromFirestore(doc.id, doc.data()!);
+      currentRole = await getSavedRole();
       final deviceId = await getDeviceId();
       await FirebaseFirestore.instance
           .collection('devices')
@@ -169,7 +366,8 @@ class CompanyRegistrationScreen extends StatefulWidget {
       _CompanyRegistrationScreenState();
 }
 
-class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
+class _CompanyRegistrationScreenState
+    extends State<CompanyRegistrationScreen> {
   final _codeCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
@@ -185,11 +383,23 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
       _error = null;
     });
     try {
-      final query = await FirebaseFirestore.instance
+      var query = await FirebaseFirestore.instance
           .collection('companies')
-          .where('registrationCode', isEqualTo: code)
+          .where('officerCode', isEqualTo: code)
           .limit(1)
           .get();
+
+      String role = 'officer';
+
+      if (query.docs.isEmpty) {
+        query = await FirebaseFirestore.instance
+            .collection('companies')
+            .where('clientCode', isEqualTo: code)
+            .limit(1)
+            .get();
+        role = 'client';
+      }
+
       if (query.docs.isEmpty) {
         setState(() {
           _error =
@@ -198,9 +408,11 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
         });
         return;
       }
+
       final companyDoc = query.docs.first;
       final company =
           CompanyConfig.fromFirestore(companyDoc.id, companyDoc.data());
+
       if (!company.isActive) {
         setState(() {
           _error =
@@ -209,33 +421,49 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
         });
         return;
       }
+
       final deviceId = await getDeviceId();
-      final devicesQuery = await FirebaseFirestore.instance
-          .collection('devices')
-          .where('companyId', isEqualTo: companyDoc.id)
-          .where('isActive', isEqualTo: true)
-          .get();
-      final existingDevice = await FirebaseFirestore.instance
+
+      if (role == 'officer') {
+        final officerDevices = await FirebaseFirestore.instance
+            .collection('devices')
+            .where('companyId', isEqualTo: companyDoc.id)
+            .where('role', isEqualTo: 'officer')
+            .where('isActive', isEqualTo: true)
+            .get();
+
+        final existingDevice = await FirebaseFirestore.instance
+            .collection('devices')
+            .doc(deviceId)
+            .get();
+
+        if (!existingDevice.exists &&
+            officerDevices.docs.length >= company.maxDevices) {
+          setState(() {
+            _error =
+                "Maximum officer device limit reached (${company.maxDevices} devices). Please contact your administrator.";
+            _loading = false;
+          });
+          return;
+        }
+      }
+
+      await FirebaseFirestore.instance
           .collection('devices')
           .doc(deviceId)
-          .get();
-      if (!existingDevice.exists &&
-          devicesQuery.docs.length >= company.maxDevices) {
-        setState(() {
-          _error =
-              "Maximum device limit reached (${company.maxDevices} devices). Please contact your administrator to upgrade your plan.";
-          _loading = false;
-        });
-        return;
-      }
-      await FirebaseFirestore.instance.collection('devices').doc(deviceId).set({
+          .set({
         'companyId': companyDoc.id,
+        'role': role,
         'registeredAt': FieldValue.serverTimestamp(),
         'lastSeen': FieldValue.serverTimestamp(),
         'isActive': true,
       });
+
       await saveCompanyId(companyDoc.id);
+      await saveRole(role);
       currentCompany = company;
+      currentRole = role;
+
       if (mounted) {
         Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => AppShell(company: company)));
@@ -264,13 +492,14 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.security, size: 80, color: Colors.red),
+              const Icon(Icons.shield, size: 80, color: Colors.red),
               const SizedBox(height: 16),
-              const Text("Guardian SOS",
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              const Text("Welcome",
+                  style:
+                      TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               const Text(
-                "Enter the registration code provided by your company administrator.",
+                "Enter the registration code provided by your administrator.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey, fontSize: 15),
               ),
@@ -279,7 +508,7 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
                 controller: _codeCtrl,
                 textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(
-                  labelText: "Company Registration Code",
+                  labelText: "Registration Code",
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.vpn_key),
                 ),
@@ -308,7 +537,8 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
                       : const Icon(Icons.login),
                   label: Text(_loading ? "Registering..." : "REGISTER DEVICE",
                       style: const TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  style:
+                      ElevatedButton.styleFrom(backgroundColor: Colors.red),
                   onPressed: _loading ? null : _register,
                 ),
               ),
@@ -348,7 +578,7 @@ class SubscriptionSuspendedScreen extends StatelessWidget {
                   textAlign: TextAlign.center),
               const SizedBox(height: 12),
               const Text(
-                "Please contact Guardian SOS support to restore access.",
+                "Please contact support to restore access.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey, fontSize: 15),
               ),
@@ -391,16 +621,34 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     _checkProfile();
+    _requestPermissions();
+  }
+
+  Future<void> _requestPermissions() async {
+    // Request location permission
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    // Request notification permission
+    await _notifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.requestNotificationsPermission();
+    // Request foreground service permission
+    await FlutterForegroundTask.requestIgnoreBatteryOptimization();
   }
 
   Future<void> _checkProfile() async {
     final id = await getDeviceId();
-    final doc =
-        await FirebaseFirestore.instance.collection('profiles').doc(id).get();
-    final hasProfile = doc.exists && (doc.data()?['name'] ?? '').isNotEmpty;
+    final doc = await FirebaseFirestore.instance
+        .collection('profiles')
+        .doc(id)
+        .get();
+    final hasProfile =
+        doc.exists && (doc.data()?['name'] ?? '').isNotEmpty;
     setState(() => _checkingProfile = false);
     if (!hasProfile && mounted) {
-      Navigator.push(
+      await Navigator.push(
           context,
           MaterialPageRoute(
               builder: (_) => const ProfileScreen(isFirstTime: true)));
@@ -409,6 +657,8 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isOfficer = currentRole == 'officer';
+
     return Theme(
       data: ThemeData(
         brightness: Brightness.dark,
@@ -437,7 +687,7 @@ class _AppShellState extends State<AppShell> {
                 ),
               Flexible(
                 child: Text(
-                  isOfficerMode
+                  isOfficer && isOfficerMode
                       ? "${widget.company.name} — OFFICER"
                       : widget.company.name,
                   overflow: TextOverflow.ellipsis,
@@ -450,23 +700,28 @@ class _AppShellState extends State<AppShell> {
             if (!isOfficerMode)
               IconButton(
                 icon: const Icon(Icons.person),
-                onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) =>
-                            const ProfileScreen(isFirstTime: false))),
+                onPressed: () async {
+                  await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const ProfileScreen(isFirstTime: false)));
+                  setState(() {});
+                },
               ),
-            Switch(
-                value: isOfficerMode,
-                activeThumbColor: Colors.blueAccent,
-                onChanged: (v) => setState(() => isOfficerMode = v)),
-            const Icon(Icons.security),
-            const SizedBox(width: 10),
+            if (isOfficer) ...[
+              Switch(
+                  value: isOfficerMode,
+                  activeThumbColor: Colors.blueAccent,
+                  onChanged: (v) => setState(() => isOfficerMode = v)),
+              const Icon(Icons.security),
+              const SizedBox(width: 10),
+            ],
           ],
         ),
         body: _checkingProfile
             ? const Center(child: CircularProgressIndicator())
-            : isOfficerMode
+            : isOfficer && isOfficerMode
                 ? OfficerDashboard(company: widget.company)
                 : SOSScreen(company: widget.company),
       ),
@@ -504,6 +759,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _contact2RelCtrl = TextEditingController();
   final _homeAddressCtrl = TextEditingController();
   final _workAddressCtrl = TextEditingController();
+  final _wa1NameCtrl = TextEditingController();
+  final _wa1PhoneCtrl = TextEditingController();
+  final _wa2NameCtrl = TextEditingController();
+  final _wa2PhoneCtrl = TextEditingController();
+  final _wa3NameCtrl = TextEditingController();
+  final _wa3PhoneCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -513,8 +774,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfile() async {
     final id = await getDeviceId();
-    final doc =
-        await FirebaseFirestore.instance.collection('profiles').doc(id).get();
+    final doc = await FirebaseFirestore.instance
+        .collection('profiles')
+        .doc(id)
+        .get();
     if (doc.exists) {
       final d = doc.data()!;
       _nameCtrl.text = d['name'] ?? '';
@@ -532,6 +795,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _contact2RelCtrl.text = d['contact2Rel'] ?? '';
       _homeAddressCtrl.text = d['homeAddress'] ?? '';
       _workAddressCtrl.text = d['workAddress'] ?? '';
+      _wa1NameCtrl.text = d['wa1Name'] ?? '';
+      _wa1PhoneCtrl.text = d['wa1Phone'] ?? '';
+      _wa2NameCtrl.text = d['wa2Name'] ?? '';
+      _wa2PhoneCtrl.text = d['wa2Phone'] ?? '';
+      _wa3NameCtrl.text = d['wa3Name'] ?? '';
+      _wa3PhoneCtrl.text = d['wa3Phone'] ?? '';
     }
     setState(() => _loading = false);
   }
@@ -556,6 +825,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'contact2Rel': _contact2RelCtrl.text.trim(),
       'homeAddress': _homeAddressCtrl.text.trim(),
       'workAddress': _workAddressCtrl.text.trim(),
+      'wa1Name': _wa1NameCtrl.text.trim(),
+      'wa1Phone': _wa1PhoneCtrl.text.trim(),
+      'wa2Name': _wa2NameCtrl.text.trim(),
+      'wa2Phone': _wa2PhoneCtrl.text.trim(),
+      'wa3Name': _wa3NameCtrl.text.trim(),
+      'wa3Phone': _wa3PhoneCtrl.text.trim(),
       'companyId': currentCompany?.id ?? '',
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -567,25 +842,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Widget _sectionHeader(String title, IconData icon) {
+  Widget _sectionHeader(String title, IconData icon, {String? subtitle}) {
     return Padding(
-      padding: const EdgeInsets.only(top: 24, bottom: 8),
-      child: Row(
+      padding: const EdgeInsets.only(top: 24, bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.red, size: 20),
-          const SizedBox(width: 8),
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red)),
+          Row(
+            children: [
+              Icon(icon, color: Colors.red, size: 20),
+              const SizedBox(width: 8),
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red)),
+            ],
+          ),
+          if (subtitle != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 4),
+              child: Text(subtitle,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            ),
+          const SizedBox(height: 8),
         ],
       ),
     );
   }
 
   Widget _field(String label, TextEditingController ctrl,
-      {TextInputType? keyboardType, bool required = false, int maxLines = 1}) {
+      {TextInputType? keyboardType,
+      bool required = false,
+      int maxLines = 1}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
@@ -598,6 +887,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
         validator: required
             ? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null
             : null,
+      ),
+    );
+  }
+
+  Widget _waContactBlock(String label, TextEditingController nameCtrl,
+      TextEditingController phoneCtrl) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[700]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.person, color: Colors.green, size: 16),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: const TextStyle(
+                      color: Colors.green, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: nameCtrl,
+            decoration: const InputDecoration(
+                labelText: "Name",
+                border: OutlineInputBorder(),
+                isDense: true),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: phoneCtrl,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+                labelText: "WhatsApp Number (e.g. 0821234567)",
+                border: OutlineInputBorder(),
+                isDense: true),
+          ),
+        ],
       ),
     );
   }
@@ -619,6 +951,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _contact2RelCtrl.dispose();
     _homeAddressCtrl.dispose();
     _workAddressCtrl.dispose();
+    _wa1NameCtrl.dispose();
+    _wa1PhoneCtrl.dispose();
+    _wa2NameCtrl.dispose();
+    _wa2PhoneCtrl.dispose();
+    _wa3NameCtrl.dispose();
+    _wa3PhoneCtrl.dispose();
     super.dispose();
   }
 
@@ -626,7 +964,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isFirstTime ? "Setup Your Profile" : "Edit Profile"),
+        title:
+            Text(widget.isFirstTime ? "Setup Your Profile" : "Edit Profile"),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -643,7 +982,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           color: Colors.red[900],
                           borderRadius: BorderRadius.circular(8)),
                       child: const Text(
-                        "Please fill in your profile so emergency responders have the information they need. You can update this anytime.",
+                        "Please fill in your profile so emergency responders have the information they need.",
                         style: TextStyle(fontSize: 14),
                       ),
                     ),
@@ -651,9 +990,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _field("Full Name", _nameCtrl, required: true),
                   _field("ID Number", _idCtrl,
                       keyboardType: TextInputType.number),
-                  _field("Age", _ageCtrl, keyboardType: TextInputType.number),
+                  _field("Age", _ageCtrl,
+                      keyboardType: TextInputType.number),
                   _field("Blood Type (e.g. O+)", _bloodTypeCtrl),
-                  _sectionHeader("Medical Information", Icons.medical_services),
+                  _sectionHeader(
+                      "Medical Information", Icons.medical_services),
                   _field("Allergies", _allergiesCtrl, maxLines: 2),
                   _field("Medical Conditions", _conditionsCtrl, maxLines: 2),
                   _field("Current Medications", _medicationsCtrl, maxLines: 2),
@@ -670,6 +1011,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _sectionHeader("Addresses", Icons.home),
                   _field("Home Address", _homeAddressCtrl, maxLines: 2),
                   _field("Work Address", _workAddressCtrl, maxLines: 2),
+                  _sectionHeader(
+                    "WhatsApp Emergency Contacts",
+                    Icons.chat,
+                    subtitle:
+                        "These contacts receive a WhatsApp message with your location when you trigger SOS.",
+                  ),
+                  _waContactBlock("Contact 1", _wa1NameCtrl, _wa1PhoneCtrl),
+                  _waContactBlock("Contact 2", _wa2NameCtrl, _wa2PhoneCtrl),
+                  _waContactBlock("Contact 3", _wa3NameCtrl, _wa3PhoneCtrl),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -684,8 +1034,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           : const Icon(Icons.save),
                       label: Text(_saving ? "Saving..." : "SAVE PROFILE",
                           style: const TextStyle(fontSize: 16)),
-                      style:
-                          ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red),
                       onPressed: _saving ? null : _saveProfile,
                     ),
                   ),
@@ -698,6 +1048,282 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// SOS ACTIVE SCREEN
+// ─────────────────────────────────────────────
+class SOSActiveScreen extends StatefulWidget {
+  final CompanyConfig company;
+  final String alertId;
+  final Map<String, dynamic> profile;
+  final double lat;
+  final double lng;
+  final VoidCallback onCancel;
+
+  const SOSActiveScreen({
+    super.key,
+    required this.company,
+    required this.alertId,
+    required this.profile,
+    required this.lat,
+    required this.lng,
+    required this.onCancel,
+  });
+
+  @override
+  State<SOSActiveScreen> createState() => _SOSActiveScreenState();
+}
+
+class _SOSActiveScreenState extends State<SOSActiveScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+  late Timer _timer;
+  int _seconds = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
+    _pulseAnimation =
+        Tween<double>(begin: 0.85, end: 1.0).animate(_pulseController);
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      setState(() => _seconds++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _timer.cancel();
+    super.dispose();
+  }
+
+  String get _elapsed {
+    final m = _seconds ~/ 60;
+    final s = _seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  List<String> get _notifiedContacts {
+    final contacts = <String>[];
+    if ((widget.profile['wa1Name'] ?? '').isNotEmpty)
+      contacts.add(widget.profile['wa1Name']);
+    if ((widget.profile['wa2Name'] ?? '').isNotEmpty)
+      contacts.add(widget.profile['wa2Name']);
+    if ((widget.profile['wa3Name'] ?? '').isNotEmpty)
+      contacts.add(widget.profile['wa3Name']);
+    return contacts;
+  }
+
+  Future<void> _cancelSOS() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text("Cancel SOS?"),
+        content: const Text(
+            "Are you sure you want to cancel the active SOS alert?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text("No, keep active",
+                style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text("Yes, cancel SOS"),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('alerts')
+          .doc(widget.alertId)
+          .update({'status': 'CANCELLED'});
+      await stopLocationService();
+      Vibration.vibrate(duration: 300);
+      widget.onCancel();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Failed to cancel SOS: $e")));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.company.primaryColor;
+    final contacts = _notifiedContacts;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  if (widget.company.logoUrl.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Image.network(
+                        widget.company.logoUrl,
+                        height: 32,
+                        width: 32,
+                        errorBuilder: (_, __, ___) =>
+                            Icon(Icons.security, color: color),
+                      ),
+                    ),
+                  Flexible(
+                    child: Text(
+                      widget.company.name,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              ScaleTransition(
+                scale: _pulseAnimation,
+                child: Container(
+                  width: 180,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.red[900],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withOpacity(0.6),
+                        blurRadius: 40,
+                        spreadRadius: 10,
+                      )
+                    ],
+                  ),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.warning, color: Colors.white, size: 48),
+                      SizedBox(height: 8),
+                      Text("SOS ACTIVE",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                "Help is on the way!",
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Stay calm. Your location is being tracked and shared with responding officers.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[400], fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.timer, color: Colors.grey, size: 18),
+                    const SizedBox(width: 8),
+                    Text("SOS active for $_elapsed",
+                        style: const TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (contacts.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green[900]!.withOpacity(0.3),
+                    border: Border.all(color: Colors.green[700]!),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.chat, color: Colors.green, size: 16),
+                          SizedBox(width: 6),
+                          Text("WhatsApp alerts sent to:",
+                              style: TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ...contacts.map((c) => Text("• $c",
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 13))),
+                    ],
+                  ),
+                ),
+              const Spacer(),
+              if (widget.company.emergencyPhone.isNotEmpty)
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.call),
+                    label: Text("CALL ${widget.company.name.toUpperCase()}",
+                        style: const TextStyle(fontSize: 15)),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[700],
+                        padding: const EdgeInsets.all(14)),
+                    onPressed: () => launchUrl(
+                        Uri.parse('tel:${widget.company.emergencyPhone}')),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.cancel),
+                  label: const Text("CANCEL SOS",
+                      style: TextStyle(fontSize: 15)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange[800],
+                      padding: const EdgeInsets.all(14)),
+                  onPressed: _cancelSOS,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -718,50 +1344,70 @@ class _SOSScreenState extends State<SOSScreen>
   bool _sosActive = false;
   double _progress = 0.0;
   Timer? _timer;
-  Timer? _heartbeatTimer;
   late AnimationController _controller;
   final _nameController = TextEditingController();
   String? _activeAlertId;
+  Map<String, dynamic> _lastProfile = {};
+  double _lastLat = 0;
+  double _lastLng = 0;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
-    _requestLocationPermission();
     _controller =
         AnimationController(vsync: this, duration: const Duration(seconds: 3))
           ..addListener(() => setState(() => _progress = _controller.value));
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadProfile();
+  }
+
   _loadProfile() async {
     final id = await getDeviceId();
-    final doc =
-        await FirebaseFirestore.instance.collection('profiles').doc(id).get();
+    final doc = await FirebaseFirestore.instance
+        .collection('profiles')
+        .doc(id)
+        .get();
     if (doc.exists && mounted) {
       setState(() => _nameController.text = doc.data()?['name'] ?? '');
     }
   }
 
-  Future<void> _requestLocationPermission() async {
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.deniedForever && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              "Location permission denied. Please enable it in settings.")));
-    }
-  }
-
   Future<Map<String, dynamic>> _getProfileSnapshot() async {
     final id = await getDeviceId();
-    final doc =
-        await FirebaseFirestore.instance.collection('profiles').doc(id).get();
+    final doc = await FirebaseFirestore.instance
+        .collection('profiles')
+        .doc(id)
+        .get();
     if (doc.exists) return doc.data()!;
     return {
       'name': _nameController.text.isEmpty ? 'User' : _nameController.text
     };
+  }
+
+  Future<void> _sendWhatsAppAlerts(
+      Map<String, dynamic> profile, double lat, double lng) async {
+    final userName = profile['name'] ?? 'User';
+    final contacts = [
+      {'name': profile['wa1Name'], 'phone': profile['wa1Phone']},
+      {'name': profile['wa2Name'], 'phone': profile['wa2Phone']},
+      {'name': profile['wa3Name'], 'phone': profile['wa3Phone']},
+    ];
+    for (final contact in contacts) {
+      final phone = (contact['phone'] ?? '').toString().trim();
+      if (phone.isNotEmpty) {
+        await sendWhatsAppAlert(
+          phone: phone,
+          userName: userName,
+          lat: lat,
+          lng: lng,
+        );
+      }
+    }
   }
 
   void _triggerSOS() async {
@@ -771,6 +1417,7 @@ class _SOSScreenState extends State<SOSScreen>
       Position pos = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
       final profile = await _getProfileSnapshot();
+
       DocumentReference doc =
           await FirebaseFirestore.instance.collection('alerts').add({
         'userName': profile['name'] ?? 'User',
@@ -781,13 +1428,20 @@ class _SOSScreenState extends State<SOSScreen>
         'profile': profile,
         'companyId': widget.company.id,
       });
+
       _activeAlertId = doc.id;
-      _startHeartbeat();
+      _lastProfile = profile;
+      _lastLat = pos.latitude;
+      _lastLng = pos.longitude;
+
+      // Start foreground service for location tracking
+      await startLocationService(doc.id, widget.company.id);
+
       if (mounted) {
         setState(() => _sosActive = true);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text("🚨 SOS SENT 🚨")));
       }
+
+      await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude);
     } catch (e) {
       debugPrint("SOS Error: $e");
       if (mounted) {
@@ -797,80 +1451,10 @@ class _SOSScreenState extends State<SOSScreen>
     }
   }
 
-  Future<void> _cancelSOS() async {
-    // Show confirmation dialog
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        title: const Text("Cancel SOS?"),
-        content: const Text(
-            "Are you sure you want to cancel the active SOS alert? The responding officer will be notified."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text("No, keep active",
-                style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text("Yes, cancel SOS"),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    try {
-      if (_activeAlertId != null) {
-        await FirebaseFirestore.instance
-            .collection('alerts')
-            .doc(_activeAlertId)
-            .update({'status': 'CANCELLED'});
-      }
-      _stopHeartbeat();
-      if (mounted) {
-        setState(() => _sosActive = false);
-        Vibration.vibrate(duration: 300);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text("SOS cancelled.")));
-      }
-    } catch (e) {
-      debugPrint("Cancel SOS error: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Failed to cancel SOS: $e")));
-      }
-    }
-  }
-
-  void _startHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(minutes: 2), (timer) async {
-      if (_activeAlertId == null) return;
-      try {
-        Position pos = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.high);
-        await FirebaseFirestore.instance
-            .collection('alerts')
-            .doc(_activeAlertId)
-            .update({
-          'lat': pos.latitude,
-          'lng': pos.longitude,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-      } catch (e) {
-        debugPrint("Heartbeat error: $e");
-      }
-    });
-  }
-
-  void _stopHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = null;
-    _activeAlertId = null;
+  void _onSOSCancelled() {
+    setState(() => _sosActive = false);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text("SOS cancelled.")));
   }
 
   void _startHolding() {
@@ -894,12 +1478,22 @@ class _SOSScreenState extends State<SOSScreen>
   void dispose() {
     _controller.dispose();
     _nameController.dispose();
-    _stopHeartbeat();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_sosActive && _activeAlertId != null) {
+      return SOSActiveScreen(
+        company: widget.company,
+        alertId: _activeAlertId!,
+        profile: _lastProfile,
+        lat: _lastLat,
+        lng: _lastLng,
+        onCancel: _onSOSCancelled,
+      );
+    }
+
     final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     final buttonSize = keyboardOpen ? 150.0 : 200.0;
     final indicatorSize = keyboardOpen ? 185.0 : 250.0;
@@ -913,109 +1507,61 @@ class _SOSScreenState extends State<SOSScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-                controller: _nameController,
-                readOnly: true,
-                decoration: const InputDecoration(
-                    labelText: "Your Name",
-                    border: OutlineInputBorder(),
-                    helperText: "Update your name in Profile")),
-            SizedBox(height: keyboardOpen ? 20 : 40),
-
-            // ── ACTIVE SOS INDICATOR ──
-            if (_sosActive)
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.red[900],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.warning, color: Colors.white, size: 18),
-                    SizedBox(width: 8),
-                    Text("SOS ACTIVE — Help is on the way",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 14)),
-                  ],
-                ),
+              controller: _nameController,
+              decoration: InputDecoration(
+                labelText: "Your Name",
+                border: const OutlineInputBorder(),
+                helperText: _nameController.text.isEmpty
+                    ? "⚠️ Please enter your name before sending SOS"
+                    : "Also editable in Profile",
               ),
-
-            // ── SOS BUTTON or CANCEL BUTTON ──
-            if (!_sosActive)
-              GestureDetector(
-                onLongPressStart: (_) => _startHolding(),
-                onLongPressEnd: (_) => _stopHolding(),
-                onLongPressCancel: () => _stopHolding(),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                        width: indicatorSize,
-                        height: indicatorSize,
-                        child: CircularProgressIndicator(
-                            value: _progress, strokeWidth: 15, color: color)),
-                    Container(
-                      width: buttonSize,
-                      height: buttonSize,
-                      decoration: BoxDecoration(
-                          color: _isHolding ? color.withOpacity(0.7) : color,
-                          shape: BoxShape.circle),
-                      child: Center(
-                          child: Text("HOLD\nSOS",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  fontSize: keyboardOpen ? 24 : 36,
-                                  fontWeight: FontWeight.bold))),
-                    ),
-                  ],
-                ),
-              )
-            else
-              // CANCEL SOS BUTTON
-              GestureDetector(
-                onTap: _cancelSOS,
-                child: Container(
-                  width: buttonSize,
-                  height: buttonSize,
-                  decoration: BoxDecoration(
-                    color: Colors.orange[800],
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.orange.withOpacity(0.5),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      )
-                    ],
+              onChanged: (val) async {
+                final id = await getDeviceId();
+                await FirebaseFirestore.instance
+                    .collection('profiles')
+                    .doc(id)
+                    .set({'name': val.trim()}, SetOptions(merge: true));
+              },
+            ),
+            SizedBox(height: keyboardOpen ? 20 : 60),
+            GestureDetector(
+              onLongPressStart: (_) => _startHolding(),
+              onLongPressEnd: (_) => _stopHolding(),
+              onLongPressCancel: () => _stopHolding(),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                      width: indicatorSize,
+                      height: indicatorSize,
+                      child: CircularProgressIndicator(
+                          value: _progress,
+                          strokeWidth: 15,
+                          color: color)),
+                  Container(
+                    width: buttonSize,
+                    height: buttonSize,
+                    decoration: BoxDecoration(
+                        color: _isHolding ? color.withOpacity(0.7) : color,
+                        shape: BoxShape.circle),
+                    child: Center(
+                        child: Text("HOLD\nSOS",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: keyboardOpen ? 24 : 36,
+                                fontWeight: FontWeight.bold))),
                   ),
-                  child: Center(
-                      child: Text("CANCEL\nSOS",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontSize: keyboardOpen ? 20 : 28,
-                              fontWeight: FontWeight.bold))),
-                ),
+                ],
               ),
-
+            ),
             const SizedBox(height: 20),
             Text(
-              _sosActive
-                  ? "Tap the button to cancel your SOS"
-                  : _isHolding
-                      ? "Keep holding..."
-                      : "Hold for 3 seconds to send SOS",
+              _isHolding
+                  ? "Keep holding..."
+                  : "Hold for 3 seconds to send SOS",
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: _sosActive
-                      ? Colors.orange
-                      : _isHolding
-                          ? color
-                          : Colors.grey,
-                  fontSize: 16),
+                  color: _isHolding ? color : Colors.grey, fontSize: 16),
             ),
           ],
         ),
@@ -1036,13 +1582,32 @@ class OfficerDashboard extends StatefulWidget {
 
 class _OfficerDashboardState extends State<OfficerDashboard> {
   final MapController _mapCtrl = MapController();
-  final AudioPlayer _player = AudioPlayer();
+  Timer? _sirenTimer;
   int _lastCount = 0;
   bool _mapReady = false;
-
   Map<String, dynamic>? _selectedAlert;
   String? _selectedAlertId;
   bool _panelOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _sirenTimer?.cancel();
+    super.dispose();
+  }
+
+  void _playSiren() {
+    SystemSound.play(SystemSoundType.alert);
+    Vibration.vibrate(pattern: [0, 300, 100, 300, 100, 300]);
+    showAlertNotification(
+      _selectedAlert?['userName'] ?? 'Unknown',
+      '${_selectedAlert?['lat']?.toStringAsFixed(4) ?? ''}, ${_selectedAlert?['lng']?.toStringAsFixed(4) ?? ''}',
+    );
+  }
 
   void _selectAlert(String id, Map<String, dynamic> data) {
     setState(() {
@@ -1106,7 +1671,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
             ),
             const SizedBox(height: 16),
             const Text("Emergency Profile",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                style:
+                    TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const Divider(height: 24),
             _profileSection("Personal Information", Icons.person, [
               _profileRow("Name", profile['name']),
@@ -1142,7 +1708,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 
-  Widget _profileSection(String title, IconData icon, List<Widget> children) {
+  Widget _profileSection(
+      String title, IconData icon, List<Widget> children) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1174,8 +1741,10 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         children: [
           SizedBox(
               width: 110,
-              child: Text(label, style: const TextStyle(color: Colors.grey))),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 15))),
+              child:
+                  Text(label, style: const TextStyle(color: Colors.grey))),
+          Expanded(
+              child: Text(text, style: const TextStyle(fontSize: 15))),
         ],
       ),
     );
@@ -1190,8 +1759,10 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         children: [
           SizedBox(
               width: 110,
-              child: Text(label, style: const TextStyle(color: Colors.grey))),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 15))),
+              child:
+                  Text(label, style: const TextStyle(color: Colors.grey))),
+          Expanded(
+              child: Text(text, style: const TextStyle(fontSize: 15))),
           IconButton(
             icon: const Icon(Icons.call, color: Colors.green, size: 22),
             onPressed: () => launchUrl(Uri.parse('tel:$text')),
@@ -1201,6 +1772,25 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         ],
       ),
     );
+  }
+
+  void _zoomToAlerts(List<QueryDocumentSnapshot> alerts) {
+    if (!_mapReady || alerts.isEmpty) return;
+    if (alerts.length == 1) {
+      final data = alerts.first.data() as Map<String, dynamic>;
+      _mapCtrl.move(LatLng(data['lat'], data['lng']), 17.0);
+    } else {
+      final points = alerts.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return LatLng(data['lat'], data['lng']);
+      }).toList();
+      _mapCtrl.fitCamera(
+        CameraFit.coordinates(
+          coordinates: points,
+          padding: const EdgeInsets.all(80),
+        ),
+      );
+    }
   }
 
   @override
@@ -1218,29 +1808,49 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        var alerts = snapshot.data!.docs;
+        final alerts = snapshot.data!.docs;
 
-        if (alerts.length > _lastCount) {
-          _player.play(AssetSource('siren.mp3'));
-          var data = alerts.last.data() as Map<String, dynamic>;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_mapReady) {
-              _mapCtrl.move(LatLng(data['lat'], data['lng']), 17.0);
-            }
-          });
-        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_mapReady) return;
+          if (alerts.length > _lastCount) {
+            // New alert — play siren and zoom
+            _playSiren();
+            final data = alerts.last.data() as Map<String, dynamic>;
+            _mapCtrl.move(LatLng(data['lat'], data['lng']), 17.0);
+          } else if (_lastCount == 0 && alerts.isNotEmpty) {
+            // Opened dashboard with existing alerts
+            _playSiren();
+            _zoomToAlerts(alerts);
+          }
+
+          // Manage repeating siren
+          if (alerts.isNotEmpty) {
+            _sirenTimer ??=
+                Timer.periodic(const Duration(seconds: 30), (_) {
+              _playSiren();
+            });
+          } else {
+            _sirenTimer?.cancel();
+            _sirenTimer = null;
+          }
+        });
+
         _lastCount = alerts.length;
 
         return Stack(
           children: [
-            // ── MAP ──
             FlutterMap(
               key: const ValueKey('officer_map'),
               mapController: _mapCtrl,
               options: MapOptions(
                 initialCenter: const LatLng(-26.107, 28.05),
                 initialZoom: 13,
-                onMapReady: () => setState(() => _mapReady = true),
+                onMapReady: () {
+                  setState(() => _mapReady = true);
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _zoomToAlerts(alerts);
+                  });
+                },
               ),
               children: [
                 TileLayer(
@@ -1249,7 +1859,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                     userAgentPackageName: 'com.cyberwarriors.sos'),
                 MarkerLayer(
                   markers: alerts.map((doc) {
-                    var data = doc.data() as Map<String, dynamic>;
+                    final data = doc.data() as Map<String, dynamic>;
                     final isSelected = doc.id == _selectedAlertId;
                     return Marker(
                       point: LatLng(data['lat'], data['lng']),
@@ -1285,7 +1895,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               ],
             ),
 
-            // ── NO ALERTS ──
             if (alerts.isEmpty)
               const Center(
                 child: Card(
@@ -1293,19 +1902,20 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                   child: Padding(
                     padding: EdgeInsets.all(20.0),
                     child: Text("No active alerts",
-                        style: TextStyle(fontSize: 18, color: Colors.white)),
+                        style: TextStyle(
+                            fontSize: 18, color: Colors.white)),
                   ),
                 ),
               ),
 
-            // ── ALERT COUNT BANNER ──
             if (alerts.isNotEmpty)
               Positioned(
                 top: 20,
                 left: 20,
                 right: 20,
                 child: GestureDetector(
-                  onTap: () => setState(() => _panelOpen = !_panelOpen),
+                  onTap: () =>
+                      setState(() => _panelOpen = !_panelOpen),
                   child: Card(
                     color: color.withOpacity(0.85),
                     child: Padding(
@@ -1319,7 +1929,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                             child: Text(
                               "🚨 ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''} — Tap to view list",
                               style: const TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.bold),
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -1330,7 +1941,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                 ),
               ),
 
-            // ── SELECTED ALERT POPUP ──
             if (_selectedAlert != null)
               Positioned(
                 bottom: 0,
@@ -1364,8 +1974,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.close),
-                                  onPressed: () =>
-                                      setState(() => _selectedAlert = null),
+                                  onPressed: () => setState(
+                                      () => _selectedAlert = null),
                                 ),
                               ],
                             ),
@@ -1386,7 +1996,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                     label: const Text("NAVIGATE"),
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.blue,
-                                        padding: const EdgeInsets.all(12)),
+                                        padding:
+                                            const EdgeInsets.all(12)),
                                     onPressed: () =>
                                         _navigateTo(_selectedAlert!),
                                   ),
@@ -1398,7 +2009,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                     label: const Text("RESOLVE"),
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.green,
-                                        padding: const EdgeInsets.all(12)),
+                                        padding:
+                                            const EdgeInsets.all(12)),
                                     onPressed: () =>
                                         _resolveAlert(_selectedAlertId!),
                                   ),
@@ -1410,18 +2022,21 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                     label: const Text("PROFILE"),
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.orange[800],
-                                        padding: const EdgeInsets.all(12)),
+                                        padding:
+                                            const EdgeInsets.all(12)),
                                     onPressed: () {
                                       final profile =
                                           _selectedAlert!['profile'];
                                       if (profile != null) {
-                                        _showProfile(context,
-                                            Map<String, dynamic>.from(profile));
+                                        _showProfile(
+                                            context,
+                                            Map<String, dynamic>.from(
+                                                profile));
                                       } else {
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(const SnackBar(
                                                 content: Text(
-                                                    "No profile available for this alert.")));
+                                                    "No profile available.")));
                                       }
                                     },
                                   ),
@@ -1436,7 +2051,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                 ),
               ),
 
-            // ── ALERT LIST PANEL ──
             if (_panelOpen && alerts.isNotEmpty)
               Positioned(
                 top: 90,
@@ -1455,7 +2069,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           children: [
                             const Text("Active Alerts",
                                 style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold)),
                             const Spacer(),
                             IconButton(
                               icon: const Icon(Icons.close),
@@ -1467,17 +2082,22 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                       ),
                       const Divider(height: 1),
                       ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 300),
+                        constraints:
+                            const BoxConstraints(maxHeight: 300),
                         child: ListView.builder(
                           shrinkWrap: true,
                           itemCount: alerts.length,
                           itemBuilder: (context, index) {
-                            var doc = alerts[index];
-                            var data = doc.data() as Map<String, dynamic>;
-                            final isSelected = doc.id == _selectedAlertId;
+                            final doc = alerts[index];
+                            final data =
+                                doc.data() as Map<String, dynamic>;
+                            final isSelected =
+                                doc.id == _selectedAlertId;
                             return ListTile(
                               leading: Icon(Icons.warning,
-                                  color: isSelected ? Colors.orange : color),
+                                  color: isSelected
+                                      ? Colors.orange
+                                      : color),
                               title: Text(
                                 data['userName'] ?? 'User',
                                 overflow: TextOverflow.ellipsis,
@@ -1486,7 +2106,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                         ? FontWeight.bold
                                         : FontWeight.normal),
                               ),
-                              subtitle: Text(_lastSeen(data['timestamp'])),
+                              subtitle:
+                                  Text(_lastSeen(data['timestamp'])),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -1501,7 +2122,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                   IconButton(
                                     icon: const Icon(Icons.check_circle,
                                         color: Colors.green),
-                                    onPressed: () => _resolveAlert(doc.id),
+                                    onPressed: () =>
+                                        _resolveAlert(doc.id),
                                   ),
                                 ],
                               ),
@@ -1520,3 +2142,10 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 }
+
+
+
+
+
+
+

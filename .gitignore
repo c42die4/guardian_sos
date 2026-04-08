@@ -48,3 +48,5 @@ app.*.map.json
 
 # Flutter repo-specific
 /packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
+android/key.properties
+guardian-sos-release.jks
