@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:vibration/vibration.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 // ─────────────────────────────────────────────
 // NOTIFICATIONS
@@ -26,6 +28,21 @@ Future<void> initNotifications() async {
   const InitializationSettings settings =
       InitializationSettings(android: androidSettings);
   await _notifications.initialize(settings);
+
+  // Create notification channel with siren sound
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'sos_alerts',
+    'SOS Alerts',
+    description: 'Emergency SOS alerts',
+    importance: Importance.max,
+    playSound: true,
+    sound: RawResourceAndroidNotificationSound('siren'),
+    enableVibration: true,
+  );
+  await _notifications
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
 }
 
 Future<void> showAlertNotification(String name, String location) async {
@@ -237,33 +254,83 @@ Future<void> saveRole(String role) async {
   await prefs.setString('device_role', role);
 }
 
+// Save full company data locally so app works offline
+Future<void> saveCompanyData(CompanyConfig company) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('company_name', company.name);
+  await prefs.setString('company_logo', company.logoUrl);
+  await prefs.setString('company_color',
+      company.primaryColor.value.toRadixString(16));
+  await prefs.setBool('company_active', company.isActive);
+  await prefs.setInt('company_max_devices', company.maxDevices);
+  await prefs.setString('company_phone', company.emergencyPhone);
+}
+
+Future<CompanyConfig?> getCompanyData(String companyId) async {
+  final prefs = await SharedPreferences.getInstance();
+  final name = prefs.getString('company_name');
+  if (name == null) return null;
+  Color color = Colors.red;
+  try {
+    final hex = prefs.getString('company_color') ?? 'ffcc0000';
+    color = Color(int.parse(hex, radix: 16));
+  } catch (_) {}
+  return CompanyConfig(
+    id: companyId,
+    name: name,
+    logoUrl: prefs.getString('company_logo') ?? '',
+    primaryColor: color,
+    isActive: prefs.getBool('company_active') ?? true,
+    maxDevices: prefs.getInt('company_max_devices') ?? 10,
+    emergencyPhone: prefs.getString('company_phone') ?? '',
+  );
+}
+
 Future<void> sendWhatsAppAlert({
   required String phone,
   required String userName,
   required double lat,
   required double lng,
 }) async {
-  final whatsappCheck = Uri.parse('whatsapp://send');
-  if (!await canLaunchUrl(whatsappCheck)) {
-    debugPrint('WhatsApp not installed, skipping alert');
-    return;
+  try {
+    final whatsappCheck = Uri.parse('whatsapp://send');
+    if (!await canLaunchUrl(whatsappCheck)) {
+      debugPrint('WhatsApp not installed, skipping alert');
+      return;
+    }
+    String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    if (cleaned.startsWith('0')) {
+      cleaned = '+27${cleaned.substring(1)}';
+    }
+    cleaned = cleaned.replaceAll('+', '');
+    final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
+    final message = Uri.encodeComponent(
+        '🚨 EMERGENCY ALERT 🚨\n\n'
+        '$userName needs urgent help!\n\n'
+        '📍 Location: $mapsLink\n\n'
+        'Please respond immediately or call emergency services.');
+    final url = 'whatsapp://send?phone=$cleaned&text=$message';
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await Future.delayed(const Duration(seconds: 2));
+    }
+  } catch (e) {
+    debugPrint('WhatsApp alert error: $e');
   }
-  String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-  if (cleaned.startsWith('0')) {
-    cleaned = '+27${cleaned.substring(1)}';
-  }
-  cleaned = cleaned.replaceAll('+', '');
-  final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
-  final message = Uri.encodeComponent(
-      '🚨 EMERGENCY ALERT 🚨\n\n'
-      '$userName needs urgent help!\n\n'
-      '📍 Location: $mapsLink\n\n'
-      'Please respond immediately or call emergency services.');
-  final url = 'https://wa.me/$cleaned?text=$message';
-  final uri = Uri.parse(url);
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-    await Future.delayed(const Duration(seconds: 2));
+}
+
+// ─────────────────────────────────────────────
+// CONNECTIVITY
+// ─────────────────────────────────────────────
+Future<bool> hasInternet() async {
+  try {
+    final socket = await Socket.connect('8.8.8.8', 53,
+        timeout: const Duration(seconds: 3));
+    socket.destroy();
+    return true;
+  } catch (e) {
+    return false;
   }
 }
 
@@ -317,34 +384,59 @@ class _AppEntryState extends State<AppEntry> {
         setState(() => _loading = false);
         return;
       }
-      final doc = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(companyId)
-          .get();
-      if (!doc.exists) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('company_id');
-        await prefs.remove('device_role');
-        setState(() => _loading = false);
-        return;
-      }
-      currentCompany = CompanyConfig.fromFirestore(doc.id, doc.data()!);
+
+      // Always load from SharedPreferences first — works offline instantly
       currentRole = await getSavedRole();
-      final deviceId = await getDeviceId();
-      await FirebaseFirestore.instance
-          .collection('devices')
-          .doc(deviceId)
-          .update({'lastSeen': FieldValue.serverTimestamp()});
+      currentCompany = await getCompanyData(companyId);
+
+      // Show app immediately with cached data
+      setState(() => _loading = false);
+
+      // Then try to refresh from Firestore in background if online
+      final connected = await hasInternet();
+      if (!connected) return;
+
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('companies')
+            .doc(companyId)
+            .get()
+            .timeout(const Duration(seconds: 8));
+        if (!doc.exists) return;
+        final company = CompanyConfig.fromFirestore(doc.id, doc.data()!);
+        await saveCompanyData(company);
+        if (mounted) setState(() => currentCompany = company);
+
+        final deviceId = await getDeviceId();
+        FirebaseFirestore.instance
+            .collection('devices')
+            .doc(deviceId)
+            .update({'lastSeen': FieldValue.serverTimestamp()})
+            .catchError((_) {});
+      } catch (e) {
+        debugPrint("Background refresh error: $e");
+      }
     } catch (e) {
       debugPrint("Init error: $e");
+      setState(() => _loading = false);
     }
-    setState(() => _loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Colors.red),
+              SizedBox(height: 16),
+              Text("Connecting...", style: TextStyle(color: Colors.grey)),
+            ],
+          ),
+        ),
+      );
     }
     if (currentCompany == null) {
       return const CompanyRegistrationScreen();
@@ -461,6 +553,7 @@ class _CompanyRegistrationScreenState
 
       await saveCompanyId(companyDoc.id);
       await saveRole(role);
+      await saveCompanyData(company);
       currentCompany = company;
       currentRole = role;
 
@@ -625,16 +718,15 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _requestPermissions() async {
-    // Request location permission
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    // Request notification permission
-    await _notifications.resolvePlatformSpecificImplementation<
+
+    await _notifications
+        .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
-    // Request foreground service permission
     await FlutterForegroundTask.requestIgnoreBatteryOptimization();
   }
 
@@ -1350,11 +1442,16 @@ class _SOSScreenState extends State<SOSScreen>
   Map<String, dynamic> _lastProfile = {};
   double _lastLat = 0;
   double _lastLng = 0;
+  bool _hasInternet = true;
+  Timer? _connectivityTimer;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _checkConnectivity();
+    _connectivityTimer = Timer.periodic(
+        const Duration(seconds: 5), (_) => _checkConnectivity());
     _controller =
         AnimationController(vsync: this, duration: const Duration(seconds: 3))
           ..addListener(() => setState(() => _progress = _controller.value));
@@ -1364,6 +1461,11 @@ class _SOSScreenState extends State<SOSScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _loadProfile();
+  }
+
+  Future<void> _checkConnectivity() async {
+    final connected = await hasInternet();
+    if (mounted) setState(() => _hasInternet = connected);
   }
 
   _loadProfile() async {
@@ -1412,6 +1514,49 @@ class _SOSScreenState extends State<SOSScreen>
 
   void _triggerSOS() async {
     _stopHolding();
+
+    // Check internet connectivity first
+    final connected = await hasInternet();
+    if (!connected) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: const Row(
+              children: [
+                Icon(Icons.wifi_off, color: Colors.red, size: 24),
+                SizedBox(width: 8),
+                Text('No Internet Connection'),
+              ],
+            ),
+            content: const Text(
+              'Cannot send SOS — your phone has no internet connection.\n\n'
+              'Please enable WiFi or mobile data, then try again.\n\n'
+              'You can still call emergency services directly.',
+              style: TextStyle(fontSize: 14, height: 1.5),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Close', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.call),
+                label: const Text('Call 112'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  launchUrl(Uri.parse('tel:112'));
+                },
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
     Vibration.vibrate(duration: 1000);
     try {
       Position pos = await Geolocator.getCurrentPosition(
@@ -1434,7 +1579,6 @@ class _SOSScreenState extends State<SOSScreen>
       _lastLat = pos.latitude;
       _lastLng = pos.longitude;
 
-      // Start foreground service for location tracking
       await startLocationService(doc.id, widget.company.id);
 
       if (mounted) {
@@ -1476,6 +1620,7 @@ class _SOSScreenState extends State<SOSScreen>
 
   @override
   void dispose() {
+    _connectivityTimer?.cancel();
     _controller.dispose();
     _nameController.dispose();
     super.dispose();
@@ -1499,72 +1644,163 @@ class _SOSScreenState extends State<SOSScreen>
     final indicatorSize = keyboardOpen ? 185.0 : 250.0;
     final color = widget.company.primaryColor;
 
-    return SingleChildScrollView(
-      physics: const NeverScrollableScrollPhysics(),
-      child: Padding(
-        padding: const EdgeInsets.all(30.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: "Your Name",
-                border: const OutlineInputBorder(),
-                helperText: _nameController.text.isEmpty
-                    ? "⚠️ Please enter your name before sending SOS"
-                    : "Also editable in Profile",
-              ),
-              onChanged: (val) async {
-                final id = await getDeviceId();
-                await FirebaseFirestore.instance
-                    .collection('profiles')
-                    .doc(id)
-                    .set({'name': val.trim()}, SetOptions(merge: true));
-              },
+    return Column(
+      children: [
+        if (!_hasInternet)
+          Container(
+            width: double.infinity,
+            color: Colors.red[900],
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                const Icon(Icons.wifi_off, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    '⚠️ No internet — SOS will not work. Enable WiFi or mobile data.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: keyboardOpen ? 20 : 60),
-            GestureDetector(
-              onLongPressStart: (_) => _startHolding(),
-              onLongPressEnd: (_) => _stopHolding(),
-              onLongPressCancel: () => _stopHolding(),
-              child: Stack(
-                alignment: Alignment.center,
+          ),
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.all(30.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
-                      width: indicatorSize,
-                      height: indicatorSize,
-                      child: CircularProgressIndicator(
-                          value: _progress,
-                          strokeWidth: 15,
-                          color: color)),
-                  Container(
-                    width: buttonSize,
-                    height: buttonSize,
-                    decoration: BoxDecoration(
-                        color: _isHolding ? color.withOpacity(0.7) : color,
-                        shape: BoxShape.circle),
-                    child: Center(
-                        child: Text("HOLD\nSOS",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                fontSize: keyboardOpen ? 24 : 36,
-                                fontWeight: FontWeight.bold))),
+                  TextField(
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: "Your Name",
+                      border: const OutlineInputBorder(),
+                      helperText: _nameController.text.isEmpty
+                          ? "⚠️ Please enter your name before sending SOS"
+                          : "Also editable in Profile",
+                    ),
+                    onChanged: (val) async {
+                      final id = await getDeviceId();
+                      await FirebaseFirestore.instance
+                          .collection('profiles')
+                          .doc(id)
+                          .set({'name': val.trim()}, SetOptions(merge: true));
+                    },
+                  ),
+                  SizedBox(height: keyboardOpen ? 20 : 60),
+                  GestureDetector(
+                    onLongPressStart: (_) => _startHolding(),
+                    onLongPressEnd: (_) => _stopHolding(),
+                    onLongPressCancel: () => _stopHolding(),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                            width: indicatorSize,
+                            height: indicatorSize,
+                            child: CircularProgressIndicator(
+                                value: _progress,
+                                strokeWidth: 15,
+                                color: color)),
+                        Container(
+                          width: buttonSize,
+                          height: buttonSize,
+                          decoration: BoxDecoration(
+                              color: _isHolding ? color.withOpacity(0.7) : color,
+                              shape: BoxShape.circle),
+                          child: Center(
+                              child: Text("HOLD\nSOS",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      fontSize: keyboardOpen ? 24 : 36,
+                                      fontWeight: FontWeight.bold))),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    _isHolding
+                        ? "Keep holding..."
+                        : "Hold for 3 seconds to send SOS",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: _isHolding ? color : Colors.grey, fontSize: 16),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            Text(
-              _isHolding
-                  ? "Keep holding..."
-                  : "Hold for 3 seconds to send SOS",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: _isHolding ? color : Colors.grey, fontSize: 16),
-            ),
-          ],
+          ),
         ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// CONNECTIVITY BANNER WIDGET
+// ─────────────────────────────────────────────
+class _ConnectivityBanner extends StatefulWidget {
+  @override
+  State<_ConnectivityBanner> createState() => _ConnectivityBannerState();
+}
+
+class _ConnectivityBannerState extends State<_ConnectivityBanner> {
+  bool _isConnected = true;
+  Timer? _checkTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkNow();
+    // Check every 5 seconds
+    _checkTimer = Timer.periodic(const Duration(seconds: 5), (_) => _checkNow());
+  }
+
+  Future<void> _checkNow() async {
+    final connected = await hasInternet();
+    if (mounted) setState(() => _isConnected = connected);
+  }
+
+  @override
+  void dispose() {
+    _checkTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isConnected) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      color: Colors.red[900],
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.wifi_off, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              '⚠️ No internet — SOS will not work. Enable WiFi or mobile data.',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => launchUrl(Uri.parse('app-settings:')),
+            child: const Text('Settings',
+                style: TextStyle(color: Colors.white, fontSize: 12)),
+          ),
+        ],
       ),
     );
   }
@@ -1582,9 +1818,9 @@ class OfficerDashboard extends StatefulWidget {
 
 class _OfficerDashboardState extends State<OfficerDashboard> {
   final MapController _mapCtrl = MapController();
-  Timer? _sirenTimer;
-  int _lastCount = 0;
+  Set<String> _knownAlertIds = {};
   bool _mapReady = false;
+  bool _isMuted = false;
   Map<String, dynamic>? _selectedAlert;
   String? _selectedAlertId;
   bool _panelOpen = false;
@@ -1596,17 +1832,23 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
 
   @override
   void dispose() {
-    _sirenTimer?.cancel();
     super.dispose();
   }
 
-  void _playSiren() {
-    SystemSound.play(SystemSoundType.alert);
-    Vibration.vibrate(pattern: [0, 300, 100, 300, 100, 300]);
+  void _playSiren(List<QueryDocumentSnapshot> alerts) {
+    final latestData =
+        alerts.isNotEmpty ? alerts.last.data() as Map<String, dynamic> : null;
+    // Always show notification regardless of mute
     showAlertNotification(
-      _selectedAlert?['userName'] ?? 'Unknown',
-      '${_selectedAlert?['lat']?.toStringAsFixed(4) ?? ''}, ${_selectedAlert?['lng']?.toStringAsFixed(4) ?? ''}',
+      latestData?['userName'] ?? 'Unknown',
+      '${latestData?['lat']?.toStringAsFixed(4) ?? ''}, '
+          '${latestData?['lng']?.toStringAsFixed(4) ?? ''}',
     );
+    // Only play sound and vibrate if not muted
+    if (!_isMuted) {
+      SystemSound.play(SystemSoundType.alert);
+      Vibration.vibrate(pattern: [0, 500, 200, 500, 200, 500]);
+    }
   }
 
   void _selectAlert(String id, Map<String, dynamic> data) {
@@ -1811,31 +2053,22 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         final alerts = snapshot.data!.docs;
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!_mapReady) return;
-          if (alerts.length > _lastCount) {
-            // New alert — play siren and zoom
-            _playSiren();
-            final data = alerts.last.data() as Map<String, dynamic>;
-            _mapCtrl.move(LatLng(data['lat'], data['lng']), 17.0);
-          } else if (_lastCount == 0 && alerts.isNotEmpty) {
-            // Opened dashboard with existing alerts
-            _playSiren();
-            _zoomToAlerts(alerts);
+          if (!mounted) return;
+
+          final currentIds = alerts.map((d) => d.id).toSet();
+          final newIds = currentIds.difference(_knownAlertIds);
+          final isFirstLoad = _knownAlertIds.isEmpty && alerts.isNotEmpty;
+
+          if (isFirstLoad) {
+            if (_mapReady) _zoomToAlerts(alerts);
+            _playSiren(alerts);
+          } else if (newIds.isNotEmpty) {
+            if (_mapReady) _zoomToAlerts(alerts);
+            _playSiren(alerts);
           }
 
-          // Manage repeating siren
-          if (alerts.isNotEmpty) {
-            _sirenTimer ??=
-                Timer.periodic(const Duration(seconds: 30), (_) {
-              _playSiren();
-            });
-          } else {
-            _sirenTimer?.cancel();
-            _sirenTimer = null;
-          }
+          _knownAlertIds = currentIds;
         });
-
-        _lastCount = alerts.length;
 
         return Stack(
           children: [
@@ -1848,7 +2081,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                 onMapReady: () {
                   setState(() => _mapReady = true);
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _zoomToAlerts(alerts);
+                    if (alerts.isNotEmpty) _zoomToAlerts(alerts);
                   });
                 },
               ),
@@ -1894,7 +2127,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                 ),
               ],
             ),
-
             if (alerts.isEmpty)
               const Center(
                 child: Card(
@@ -1907,7 +2139,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                   ),
                 ),
               ),
-
             if (alerts.isNotEmpty)
               Positioned(
                 top: 20,
@@ -1934,13 +2165,21 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => setState(() => _isMuted = !_isMuted),
+                            child: Icon(
+                              _isMuted ? Icons.volume_off : Icons.volume_up,
+                              color: _isMuted ? Colors.orange : Colors.white,
+                              size: 22,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
               ),
-
             if (_selectedAlert != null)
               Positioned(
                 bottom: 0,
@@ -2050,7 +2289,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                   ),
                 ),
               ),
-
             if (_panelOpen && alerts.isNotEmpty)
               Positioned(
                 top: 90,
@@ -2142,10 +2380,3 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 }
-
-
-
-
-
-
-
