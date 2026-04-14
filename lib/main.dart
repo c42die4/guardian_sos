@@ -1707,7 +1707,7 @@ class _SOSScreenState extends State<SOSScreen>
                             child: CircularProgressIndicator(
                                 value: _progress,
                                 strokeWidth: 15,
-                                color: color)),
+                                color: Colors.red)),
                         Container(
                           width: buttonSize,
                           height: buttonSize,
