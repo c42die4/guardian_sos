@@ -1707,7 +1707,7 @@ class _SOSScreenState extends State<SOSScreen>
                             child: CircularProgressIndicator(
                                 value: _progress,
                                 strokeWidth: 15,
-                                color: Colors.red)),
+                                color: color)),
                         Container(
                           width: buttonSize,
                           height: buttonSize,
@@ -1746,6 +1746,231 @@ class _SOSScreenState extends State<SOSScreen>
 // ─────────────────────────────────────────────
 // CONNECTIVITY BANNER WIDGET
 // ─────────────────────────────────────────────
+// ─── HUD Navigation Screen ───────────────────────────────────────────────────
+class HUDScreen extends StatefulWidget {
+  final double targetLat;
+  final double targetLng;
+  final String clientName;
+  final CompanyConfig company;
+
+  const HUDScreen({
+    super.key,
+    required this.targetLat,
+    required this.targetLng,
+    required this.clientName,
+    required this.company,
+  });
+
+  @override
+  State<HUDScreen> createState() => _HUDScreenState();
+}
+
+class _HUDScreenState extends State<HUDScreen>
+    with SingleTickerProviderStateMixin {
+  bool _hudMode = true; // flipped for windscreen
+  double _bearing = 0;
+  double _distance = 0;
+  Position? _myPosition;
+  StreamSubscription<Position>? _positionStream;
+  late AnimationController _arrowController;
+  late Animation<double> _arrowAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _arrowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _arrowAnimation =
+        Tween<double>(begin: 0, end: 0).animate(_arrowController);
+    _startTracking();
+  }
+
+  void _startTracking() async {
+    // Get initial position
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+      _updatePosition(pos);
+    } catch (_) {}
+
+    // Stream updates
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
+      ),
+    ).listen(_updatePosition);
+  }
+
+  void _updatePosition(Position pos) {
+    if (!mounted) return;
+    final bearing = Geolocator.bearingBetween(
+      pos.latitude,
+      pos.longitude,
+      widget.targetLat,
+      widget.targetLng,
+    );
+    final distance = Geolocator.distanceBetween(
+      pos.latitude,
+      pos.longitude,
+      widget.targetLat,
+      widget.targetLng,
+    );
+
+    // Animate arrow to new bearing
+    _arrowAnimation = Tween<double>(
+      begin: _arrowAnimation.value,
+      end: bearing * (pi / 180),
+    ).animate(CurvedAnimation(
+      parent: _arrowController,
+      curve: Curves.easeInOut,
+    ));
+    _arrowController.forward(from: 0);
+
+    setState(() {
+      _myPosition = pos;
+      _bearing = bearing;
+      _distance = distance;
+    });
+  }
+
+  String _formatDistance(double meters) {
+    if (meters < 1000) {
+      return '${meters.toStringAsFixed(0)} m';
+    } else {
+      return '${(meters / 1000).toStringAsFixed(1)} km';
+    }
+  }
+
+  @override
+  void dispose() {
+    _positionStream?.cancel();
+    _arrowController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildContent() {
+    return Container(
+      color: Colors.black,
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Top bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white, size: 32),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  Text(
+                    widget.clientName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _hudMode ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.red,
+                      size: 32,
+                    ),
+                    onPressed: () => setState(() => _hudMode = !_hudMode),
+                  ),
+                ],
+              ),
+            ),
+            // Main HUD content
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Distance
+                  Text(
+                    _myPosition == null ? 'Locating...' : _formatDistance(_distance),
+                    style: TextStyle(
+                      color: _distance < 200 ? Colors.green : Colors.red,
+                      fontSize: 56,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _distance < 200 ? 'ARRIVING' : 'TO CLIENT',
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 16,
+                      letterSpacing: 4,
+                    ),
+                  ),
+                  const SizedBox(height: 60),
+                  // Animated direction arrow
+                  AnimatedBuilder(
+                    animation: _arrowAnimation,
+                    builder: (_, __) => Transform.rotate(
+                      angle: _arrowAnimation.value,
+                      child: Icon(
+                        Icons.navigation,
+                        color: widget.company.primaryColor,
+                        size: 160,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  // Compass bearing text
+                  Text(
+                    _myPosition == null
+                        ? '--°'
+                        : '${_bearing.toStringAsFixed(0)}°',
+                    style: const TextStyle(
+                      color: Colors.white38,
+                      fontSize: 24,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Bottom HUD label
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(
+                _hudMode ? 'HUD MODE — Place phone on dashboard' : 'NORMAL MODE',
+                style: const TextStyle(
+                  color: Colors.white30,
+                  fontSize: 12,
+                  letterSpacing: 2,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // In HUD mode, flip vertically for windscreen reflection
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: _hudMode
+          ? Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.rotationX(pi),
+              child: _buildContent(),
+            )
+          : _buildContent(),
+    );
+  }
+}
+
 class _ConnectivityBanner extends StatefulWidget {
   @override
   State<_ConnectivityBanner> createState() => _ConnectivityBannerState();
@@ -1862,8 +2087,46 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     }
   }
 
-  void _navigateTo(Map<String, dynamic> data) {
-    launchUrl(Uri.parse('google.navigation:q=${data['lat']},${data['lng']}'));
+  void _navigateTo(Map<String, dynamic> data) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Navigate To Client',
+            style: TextStyle(color: Colors.white)),
+        content: const Text('Choose navigation mode:',
+            style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.map, color: Colors.blue),
+            label: const Text('Google Maps',
+                style: TextStyle(color: Colors.blue)),
+            onPressed: () => Navigator.of(ctx).pop('maps'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.remove_red_eye),
+            label: const Text('HUD Mode'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop('hud'),
+          ),
+        ],
+      ),
+    );
+    if (choice == 'maps') {
+      launchUrl(Uri.parse(
+          'google.navigation:q=${data["lat"]},${data["lng"]}'));
+    } else if (choice == 'hud') {
+      if (mounted) {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => HUDScreen(
+            targetLat: (data['lat'] as num).toDouble(),
+            targetLng: (data['lng'] as num).toDouble(),
+            clientName: data['userName'] ?? 'Client',
+            company: widget.company,
+          ),
+        ));
+      }
+    }
   }
 
   Future<void> _resolveAlert(String id) async {
