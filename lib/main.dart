@@ -188,6 +188,9 @@ class CompanyConfig {
   final int maxDevices;
   final String emergencyPhone;
 
+  final bool isTrial;
+  final String trialEnds;
+
   CompanyConfig({
     required this.id,
     required this.name,
@@ -196,7 +199,19 @@ class CompanyConfig {
     required this.isActive,
     required this.maxDevices,
     required this.emergencyPhone,
+    this.isTrial = false,
+    this.trialEnds = '',
   });
+
+  bool get isTrialExpired {
+    if (!isTrial || trialEnds.isEmpty) return false;
+    try {
+      final end = DateTime.parse(trialEnds);
+      return DateTime.now().isAfter(end);
+    } catch (_) {
+      return false;
+    }
+  }
 
   factory CompanyConfig.fromFirestore(String id, Map<String, dynamic> data) {
     Color color = Colors.red;
@@ -213,6 +228,8 @@ class CompanyConfig {
       isActive: data['isActive'] ?? true,
       maxDevices: data['maxDevices'] ?? 10,
       emergencyPhone: data['emergencyPhone'] ?? '',
+      isTrial: data['isTrial'] ?? false,
+      trialEnds: data['trialEnds'] ?? '',
     );
   }
 }
@@ -264,6 +281,8 @@ Future<void> saveCompanyData(CompanyConfig company) async {
   await prefs.setBool('company_active', company.isActive);
   await prefs.setInt('company_max_devices', company.maxDevices);
   await prefs.setString('company_phone', company.emergencyPhone);
+  await prefs.setBool('company_is_trial', company.isTrial);
+  await prefs.setString('company_trial_ends', company.trialEnds);
 }
 
 Future<CompanyConfig?> getCompanyData(String companyId) async {
@@ -283,6 +302,8 @@ Future<CompanyConfig?> getCompanyData(String companyId) async {
     isActive: prefs.getBool('company_active') ?? true,
     maxDevices: prefs.getInt('company_max_devices') ?? 10,
     emergencyPhone: prefs.getString('company_phone') ?? '',
+    isTrial: prefs.getBool('company_is_trial') ?? false,
+    trialEnds: prefs.getString('company_trial_ends') ?? '',
   );
 }
 
@@ -443,6 +464,10 @@ class _AppEntryState extends State<AppEntry> {
     }
     if (!currentCompany!.isActive) {
       return SubscriptionSuspendedScreen(company: currentCompany!);
+    }
+    // Check trial expiry
+    if (currentCompany!.isTrialExpired) {
+      return TrialExpiredScreen(company: currentCompany!);
     }
     return AppShell(company: currentCompany!);
   }
@@ -634,6 +659,81 @@ class _CompanyRegistrationScreenState
                       ElevatedButton.styleFrom(backgroundColor: Colors.red),
                   onPressed: _loading ? null : _register,
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// TRIAL EXPIRED SCREEN
+// ─────────────────────────────────────────────
+class TrialExpiredScreen extends StatelessWidget {
+  final CompanyConfig company;
+  const TrialExpiredScreen({super.key, required this.company});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.timer_off, size: 80, color: Colors.orange),
+              const SizedBox(height: 24),
+              Text(
+                company.name,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Your 14-day free trial has expired.',
+                style: TextStyle(fontSize: 18, color: Colors.orange),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'To continue using the service, please subscribe at cyberwarriors.co.za or contact us directly.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 15, height: 1.5),
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.language),
+                  label: const Text('Subscribe Now', style: TextStyle(fontSize: 16)),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  onPressed: () => launchUrl(
+                    Uri.parse('https://c42die4.github.io/guardian-sos-signup/signup.html'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.call),
+                  label: const Text('Call Cyber Warriors', style: TextStyle(fontSize: 16)),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[800]),
+                  onPressed: () => launchUrl(Uri.parse('tel:+27000000000')),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => launchUrl(
+                  Uri.parse('mailto:info@cyberwarriors.co.za?subject=Trial%20Expired%20-%20${Uri.encodeComponent(company.name)}'),
+                ),
+                child: const Text('Email Us', style: TextStyle(color: Colors.grey)),
               ),
             ],
           ),
@@ -2088,40 +2188,71 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   }
 
   void _navigateTo(Map<String, dynamic> data) async {
+    final lat = (data['lat'] as num).toDouble();
+    final lng = (data['lng'] as num).toDouble();
+    final name = data['userName'] ?? 'Client';
+
     final choice = await showDialog<String>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
         title: const Text('Navigate To Client',
             style: TextStyle(color: Colors.white)),
-        content: const Text('Choose navigation mode:',
-            style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.map, color: Colors.blue),
-            label: const Text('Google Maps',
-                style: TextStyle(color: Colors.blue)),
-            onPressed: () => Navigator.of(ctx).pop('maps'),
-          ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.remove_red_eye),
-            label: const Text('HUD Mode'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.of(ctx).pop('hud'),
-          ),
-        ],
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Choose navigation mode:',
+                style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.map),
+                label: const Text('Google Maps'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  padding: const EdgeInsets.all(14),
+                ),
+                onPressed: () => Navigator.of(ctx).pop('maps'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.remove_red_eye),
+                label: const Text('HUD Mode'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding: const EdgeInsets.all(14),
+                ),
+                onPressed: () => Navigator.of(ctx).pop('hud'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Colors.grey)),
+            ),
+          ],
+        ),
       ),
     );
+
     if (choice == 'maps') {
-      launchUrl(Uri.parse(
-          'google.navigation:q=${data["lat"]},${data["lng"]}'));
+      // Use Google Maps package directly — bypasses Android app picker completely
+      final googleMapsUrl = Uri.parse(
+          'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+      await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
     } else if (choice == 'hud') {
       if (mounted) {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => HUDScreen(
-            targetLat: (data['lat'] as num).toDouble(),
-            targetLng: (data['lng'] as num).toDouble(),
-            clientName: data['userName'] ?? 'Client',
+            targetLat: lat,
+            targetLng: lng,
+            clientName: name,
             company: widget.company,
           ),
         ));
