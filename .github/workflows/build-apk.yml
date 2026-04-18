@@ -1,4 +1,4 @@
-# Build workflow v4 - correct relative paths
+# Build workflow v5 - write gradle wrapper directly
 name: Build Custom APK
 
 on:
@@ -9,6 +9,7 @@ on:
       - 'android/app/src/*/res/**'
       - 'android/app/build.gradle.kts'
       - '.github/workflows/build-apk.yml'
+      - 'android/gradle/wrapper/gradle-wrapper.properties'
   workflow_dispatch:
     inputs:
       flavor:
@@ -31,12 +32,25 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Fix Gradle wrapper version
+      - name: Create Gradle wrapper properties
         run: |
-          sed -i 's/gradle-[0-9.]*-all/gradle-8.11.1-all/g' android/gradle/wrapper/gradle-wrapper.properties
-          sed -i 's/gradle-[0-9.]*-bin/gradle-8.11.1-bin/g' android/gradle/wrapper/gradle-wrapper.properties
-          echo "Gradle properties after fix:"
+          mkdir -p android/gradle/wrapper
+          cat > android/gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.11.1-all.zip
+          EOF
+          echo "Gradle wrapper created:"
           cat android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Download Gradle wrapper jar
+        run: |
+          mkdir -p android/gradle/wrapper
+          curl -L -o android/gradle/wrapper/gradle-wrapper.jar \
+            https://github.com/gradle/gradle/raw/v8.11.1/gradle/wrapper/gradle-wrapper.jar
+          ls -la android/gradle/wrapper/
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
