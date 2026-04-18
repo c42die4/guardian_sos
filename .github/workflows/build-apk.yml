@@ -30,11 +30,23 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Show directory structure
+        run: |
+          echo "Current dir: $(pwd)"
+          ls -la
+          ls -la android/ || echo "No android dir"
+          ls -la android/gradle/ || echo "No gradle dir"
+          ls -la android/gradle/wrapper/ || echo "No wrapper dir"
+
       - name: Fix Gradle wrapper version
         run: |
-          sed -i 's/gradle-[0-9.]*-all/gradle-8.11.1-all/g' android/gradle/wrapper/gradle-wrapper.properties
-          sed -i 's/gradle-[0-9.]*-bin/gradle-8.11.1-bin/g' android/gradle/wrapper/gradle-wrapper.properties
-          cat android/gradle/wrapper/gradle-wrapper.properties
+          GRADLE_PROPS="$(pwd)/android/gradle/wrapper/gradle-wrapper.properties"
+          echo "Looking for: $GRADLE_PROPS"
+          cat "$GRADLE_PROPS"
+          sed -i 's/gradle-[0-9.]*-all/gradle-8.11.1-all/g' "$GRADLE_PROPS"
+          sed -i 's/gradle-[0-9.]*-bin/gradle-8.11.1-bin/g' "$GRADLE_PROPS"
+          echo "After fix:"
+          cat "$GRADLE_PROPS"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
