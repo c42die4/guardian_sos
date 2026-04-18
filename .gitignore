@@ -33,7 +33,7 @@ pubspec.lock
 **/android/captures/
 **/android/gradlew
 **/android/gradlew.bat
-**/android/gradle/wrapper/
+
 **/android/key.properties
 *.jks
 
