@@ -1,0 +1,130 @@
+name: Build Custom APK
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'android/app/src/*/res/**'
+      - 'android/app/build.gradle.kts'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Flavor to build (e.g. ironhide_security)'
+        required: true
+        default: 'default'
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.3'
+          channel: 'stable'
+          cache: true
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/guardian-sos-release.jks
+
+      - name: Create key.properties
+        run: |
+          cat > android/key.properties << EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=../guardian-sos-release.jks
+          EOF
+
+      - name: Determine flavor to build
+        id: flavor
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "flavor=${{ github.event.inputs.flavor }}" >> $GITHUB_OUTPUT
+          else
+            # Auto-detect new flavors from changed files
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+            FLAVOR=$(echo "$CHANGED" | grep -oP 'android/app/src/\K[^/]+(?=/res)' | grep -v 'main\|debug\|release' | head -1)
+            if [ -z "$FLAVOR" ]; then
+              FLAVOR="default"
+            fi
+            echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
+          fi
+          echo "Building flavor: ${{ steps.flavor.outputs.flavor }}"
+
+      - name: Build release APK
+        run: |
+          flutter build apk --release --flavor ${{ steps.flavor.outputs.flavor }}
+
+      - name: Rename APK
+        run: |
+          FLAVOR="${{ steps.flavor.outputs.flavor }}"
+          mkdir -p output
+          cp build/app/outputs/flutter-apk/app-${FLAVOR}-release.apk output/${FLAVOR}.apk
+          echo "APK ready: output/${FLAVOR}.apk"
+
+      - name: Upload APK to guardian-sos-signup repo
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          FLAVOR="${{ steps.flavor.outputs.flavor }}"
+          APK_PATH="output/${FLAVOR}.apk"
+          
+          # Get current file SHA if it exists (needed for update)
+          SHA=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/c42die4/guardian-sos-signup/contents/downloads/${FLAVOR}.apk" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sha',''))" 2>/dev/null || echo "")
+          
+          # Encode APK as base64
+          CONTENT=$(base64 -w 0 "$APK_PATH")
+          
+          # Build JSON payload
+          if [ -z "$SHA" ]; then
+            PAYLOAD="{\"message\":\"Add APK for ${FLAVOR}\",\"content\":\"${CONTENT}\"}"
+          else
+            PAYLOAD="{\"message\":\"Update APK for ${FLAVOR}\",\"content\":\"${CONTENT}\",\"sha\":\"${SHA}\"}"
+          fi
+          
+          # Upload to GitHub
+          curl -s -X PUT \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "https://api.github.com/repos/c42die4/guardian-sos-signup/contents/downloads/${FLAVOR}.apk"
+          
+          echo "✅ APK uploaded to downloads/${FLAVOR}.apk"
+          echo "🌐 Available at: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk"
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.flavor.outputs.flavor }}-release
+          path: output/${{ steps.flavor.outputs.flavor }}.apk
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          FLAVOR="${{ steps.flavor.outputs.flavor }}"
+          echo "## ✅ Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Flavor:** ${FLAVOR}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Download URL:**" >> $GITHUB_STEP_SUMMARY
+          echo "https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk" >> $GITHUB_STEP_SUMMARY
