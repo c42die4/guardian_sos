@@ -1,19 +1,11 @@
-# Build workflow v5 - write gradle wrapper directly
+# Build workflow v6 - fix flavor detection
 name: Build Custom APK
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - 'android/app/src/*/res/**'
-      - 'android/app/build.gradle.kts'
-      - '.github/workflows/build-apk.yml'
-      - 'android/gradle/wrapper/gradle-wrapper.properties'
   workflow_dispatch:
     inputs:
       flavor:
-        description: 'Flavor to build (e.g. ironhide_security)'
+        description: 'Flavor to build (e.g. default, ironhide_security)'
         required: true
         default: 'default'
 
@@ -35,21 +27,16 @@ jobs:
       - name: Create Gradle wrapper properties
         run: |
           mkdir -p android/gradle/wrapper
-          cat > android/gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.11.1-all.zip
-          EOF
-          echo "Gradle wrapper created:"
+          printf 'distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.11.1-all.zip\n' > android/gradle/wrapper/gradle-wrapper.properties
+          echo "Gradle wrapper:"
           cat android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Download Gradle wrapper jar
         run: |
-          mkdir -p android/gradle/wrapper
           curl -L -o android/gradle/wrapper/gradle-wrapper.jar \
-            https://github.com/gradle/gradle/raw/v8.11.1/gradle/wrapper/gradle-wrapper.jar
+            "https://raw.githubusercontent.com/gradle/gradle/v8.11.0/gradle/wrapper/gradle-wrapper.jar" \
+            || curl -L -o android/gradle/wrapper/gradle-wrapper.jar \
+            "https://github.com/nicholasgasior/nextbus-android/raw/master/gradle/wrapper/gradle-wrapper.jar"
           ls -la android/gradle/wrapper/
 
       - name: Set up Flutter
@@ -65,47 +52,31 @@ jobs:
       - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/guardian-sos-release.jks
+          ls -la android/guardian-sos-release.jks
 
       - name: Create key.properties
         run: |
-          cat > android/key.properties << EOF
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          storeFile=../guardian-sos-release.jks
-          EOF
-
-      - name: Determine flavor to build
-        id: flavor
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "flavor=${{ github.event.inputs.flavor }}" >> $GITHUB_OUTPUT
-          else
-            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
-            FLAVOR=$(echo "$CHANGED" | grep -oP 'android/app/src/\K[^/]+(?=/res)' | grep -v 'main\|debug\|release' | head -1)
-            if [ -z "$FLAVOR" ]; then
-              FLAVOR="default"
-            fi
-            echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
-          fi
-          echo "Building flavor: ${{ steps.flavor.outputs.flavor }}"
+          printf 'storePassword=${{ secrets.KEYSTORE_PASSWORD }}\nkeyPassword=${{ secrets.KEY_PASSWORD }}\nkeyAlias=${{ secrets.KEY_ALIAS }}\nstoreFile=../guardian-sos-release.jks\n' > android/key.properties
+          echo "key.properties created"
 
       - name: Build release APK
         run: |
-          flutter build apk --release --flavor ${{ steps.flavor.outputs.flavor }}
+          FLAVOR="${{ github.event.inputs.flavor }}"
+          echo "Building flavor: $FLAVOR"
+          flutter build apk --release --flavor $FLAVOR
 
-      - name: Rename APK
+      - name: Rename and save APK
         run: |
-          FLAVOR="${{ steps.flavor.outputs.flavor }}"
+          FLAVOR="${{ github.event.inputs.flavor }}"
           mkdir -p output
           cp build/app/outputs/flutter-apk/app-${FLAVOR}-release.apk output/${FLAVOR}.apk
-          echo "APK ready: output/${FLAVOR}.apk"
+          ls -lh output/
 
       - name: Upload APK to guardian-sos-signup repo
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          FLAVOR="${{ steps.flavor.outputs.flavor }}"
+          FLAVOR="${{ github.event.inputs.flavor }}"
           APK_PATH="output/${FLAVOR}.apk"
 
           SHA=$(curl -s -H "Authorization: token $GH_TOKEN" \
@@ -120,24 +91,25 @@ jobs:
             PAYLOAD="{\"message\":\"Update APK for ${FLAVOR}\",\"content\":\"${CONTENT}\",\"sha\":\"${SHA}\"}"
           fi
 
-          curl -s -X PUT \
+          RESULT=$(curl -s -X PUT \
             -H "Authorization: token $GH_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD" \
-            "https://api.github.com/repos/c42die4/guardian-sos-signup/contents/downloads/${FLAVOR}.apk"
+            "https://api.github.com/repos/c42die4/guardian-sos-signup/contents/downloads/${FLAVOR}.apk")
 
-          echo "✅ APK uploaded: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk"
+          echo "Upload result: $RESULT" | head -5
+          echo "✅ APK available at: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk"
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.flavor.outputs.flavor }}-release
-          path: output/${{ steps.flavor.outputs.flavor }}.apk
+          name: ${{ github.event.inputs.flavor }}-release
+          path: output/${{ github.event.inputs.flavor }}.apk
           retention-days: 30
 
       - name: Summary
         run: |
-          FLAVOR="${{ steps.flavor.outputs.flavor }}"
+          FLAVOR="${{ github.event.inputs.flavor }}"
           echo "## ✅ Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "**Flavor:** ${FLAVOR}" >> $GITHUB_STEP_SUMMARY
           echo "**Download:** https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk" >> $GITHUB_STEP_SUMMARY
