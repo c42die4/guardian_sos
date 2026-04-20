@@ -1,5 +1,5 @@
-# v14
-# Build workflow v14 - use existing gradle wrapper from repo
+# v15
+# Build workflow v15 - correct flutter version
 name: Build Custom APK
 
 on:
@@ -32,7 +32,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.3'
+          flutter-version: '3.41.5'
           channel: 'stable'
           cache: true
 
@@ -45,14 +45,12 @@ jobs:
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
           cat android/local.properties
 
-      - name: Fix Gradle wrapper properties
+      - name: Fix Gradle wrapper version
         run: |
           sed -i 's/gradle-[0-9.]*-all/gradle-8.11.1-all/g' android/gradle/wrapper/gradle-wrapper.properties
           sed -i 's/gradle-[0-9.]*-bin/gradle-8.11.1-bin/g' android/gradle/wrapper/gradle-wrapper.properties
-          echo "Gradle wrapper properties:"
           cat android/gradle/wrapper/gradle-wrapper.properties
-          echo "Gradle wrapper jar exists:"
-          ls -lh android/gradle/wrapper/gradle-wrapper.jar
+          ls -lh android/gradle/wrapper/
 
       - name: Get Flutter dependencies
         run: flutter pub get
