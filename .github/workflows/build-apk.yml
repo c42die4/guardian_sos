@@ -1,5 +1,5 @@
-# v12
-# Build workflow v12 - correct step order
+# v13
+# Build workflow v13 - official gradle wrapper jar
 name: Build Custom APK
 
 on:
@@ -43,17 +43,27 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
-          echo "local.properties contents:"
           cat android/local.properties
 
-      - name: Create Gradle wrapper properties
+      - name: Create Gradle wrapper
         run: |
           mkdir -p android/gradle/wrapper
-          printf 'distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.11.1-all.zip\n' > android/gradle/wrapper/gradle-wrapper.properties
-          curl -sL -o android/gradle/wrapper/gradle-wrapper.jar \
-            "https://github.com/nicholasgasior/nextbus-android/raw/master/gradle/wrapper/gradle-wrapper.jar"
-          echo "Gradle wrapper:"
+          # Write properties file
+          cat > android/gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.11.1-all.zip
+          EOF
+          # Use gradle to generate the wrapper jar properly
+          cd android
+          gradle wrapper --gradle-version=8.11.1
+          cd ..
+          echo "Wrapper files:"
           ls -la android/gradle/wrapper/
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
       - name: Get Flutter dependencies
         run: flutter pub get
