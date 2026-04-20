@@ -1,5 +1,5 @@
-# v15
-# Build workflow v15 - correct flutter version
+# v16
+# Build workflow v16 - fix large file upload
 name: Build Custom APK
 
 on:
@@ -20,8 +20,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout guardian-sos-signup repo
         uses: actions/checkout@v4
+        with:
+          repository: c42die4/guardian-sos-signup
+          token: ${{ secrets.GH_TOKEN }}
+          path: signup-repo
+
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          path: app-repo
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -40,69 +49,58 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Create local.properties
+        working-directory: app-repo
         run: |
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
           cat android/local.properties
 
       - name: Fix Gradle wrapper version
+        working-directory: app-repo
         run: |
           sed -i 's/gradle-[0-9.]*-all/gradle-8.11.1-all/g' android/gradle/wrapper/gradle-wrapper.properties
-          sed -i 's/gradle-[0-9.]*-bin/gradle-8.11.1-bin/g' android/gradle/wrapper/gradle-wrapper.properties
           cat android/gradle/wrapper/gradle-wrapper.properties
-          ls -lh android/gradle/wrapper/
 
       - name: Get Flutter dependencies
+        working-directory: app-repo
         run: flutter pub get
 
       - name: Decode keystore
+        working-directory: app-repo
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/guardian-sos-release.jks
 
       - name: Create key.properties
+        working-directory: app-repo
         run: |
           printf 'storePassword=${{ secrets.KEYSTORE_PASSWORD }}\nkeyPassword=${{ secrets.KEY_PASSWORD }}\nkeyAlias=${{ secrets.KEY_ALIAS }}\nstoreFile=../guardian-sos-release.jks\n' > android/key.properties
 
       - name: Build release APK
+        working-directory: app-repo
         run: |
           FLAVOR="${{ github.event.inputs.flavor }}"
           echo "Building flavor: $FLAVOR"
           flutter build apk --release --flavor "$FLAVOR"
 
-      - name: Rename and save APK
+      - name: Copy APK to signup repo and push
         run: |
           FLAVOR="${{ github.event.inputs.flavor }}"
-          mkdir -p output
-          cp build/app/outputs/flutter-apk/app-${FLAVOR}-release.apk output/${FLAVOR}.apk
-          ls -lh output/
-
-      - name: Upload APK to guardian-sos-signup repo
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          FLAVOR="${{ github.event.inputs.flavor }}"
-          APK_PATH="output/${FLAVOR}.apk"
-          SHA=$(curl -s -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/c42die4/guardian-sos-signup/contents/downloads/${FLAVOR}.apk" \
-            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sha',''))" 2>/dev/null || echo "")
-          CONTENT=$(base64 -w 0 "$APK_PATH")
-          if [ -z "$SHA" ]; then
-            PAYLOAD="{\"message\":\"Add APK for ${FLAVOR}\",\"content\":\"${CONTENT}\"}"
-          else
-            PAYLOAD="{\"message\":\"Update APK for ${FLAVOR}\",\"content\":\"${CONTENT}\",\"sha\":\"${SHA}\"}"
-          fi
-          curl -s -X PUT \
-            -H "Authorization: token $GH_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            "https://api.github.com/repos/c42die4/guardian-sos-signup/contents/downloads/${FLAVOR}.apk"
+          mkdir -p signup-repo/downloads
+          cp app-repo/build/app/outputs/flutter-apk/app-${FLAVOR}-release.apk signup-repo/downloads/${FLAVOR}.apk
+          ls -lh signup-repo/downloads/
+          cd signup-repo
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add downloads/${FLAVOR}.apk
+          git commit -m "Update APK for ${FLAVOR}" || echo "No changes to commit"
+          git push
           echo "✅ Done: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk"
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ github.event.inputs.flavor }}-release
-          path: output/${{ github.event.inputs.flavor }}.apk
+          path: app-repo/build/app/outputs/flutter-apk/app-${{ github.event.inputs.flavor }}-release.apk
           retention-days: 30
 
       - name: Summary
