@@ -1,4 +1,4 @@
-# Build workflow v9 - fix local.properties
+# Build workflow v10 - local.properties before gradle wrapper
 name: Build Custom APK
 
 on:
@@ -31,19 +31,22 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Gradle
+      - name: Create local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          echo "Created local.properties:"
+          cat android/local.properties
+
+      - name: Install Gradle and create wrapper
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.11.1'
 
-      - name: Create Gradle wrapper and local.properties
+      - name: Create Gradle wrapper files
         run: |
           mkdir -p android/gradle/wrapper
-          gradle wrapper --gradle-version 8.11.1 --project-dir android || true
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          echo "local.properties created:"
-          cat android/local.properties
-          echo "Gradle wrapper:"
+          gradle wrapper --gradle-version 8.11.1 --project-dir android
+          echo "Gradle wrapper files:"
           ls -la android/gradle/wrapper/
 
       - name: Set up Flutter
