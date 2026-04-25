@@ -30,7 +30,6 @@ Future<void> initNotifications() async {
       InitializationSettings(android: androidSettings);
   await _notifications.initialize(settings);
 
-  // Create notification channel with siren sound
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
     'sos_alerts',
     'SOS Alerts',
@@ -46,7 +45,8 @@ Future<void> initNotifications() async {
       ?.createNotificationChannel(channel);
 }
 
-Future<void> showAlertNotification(String name, String location) async {
+Future<void> showAlertNotification(String name, String location,
+    {int notificationId = 0}) async {
   final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
     'sos_alerts',
     'SOS Alerts',
@@ -62,11 +62,133 @@ Future<void> showAlertNotification(String name, String location) async {
   final NotificationDetails details =
       NotificationDetails(android: androidDetails);
   await _notifications.show(
-    0,
+    notificationId,
     '🚨 SOS ALERT — $name',
     '📍 $location',
     details,
   );
+}
+
+// ─────────────────────────────────────────────
+// ESCALATING NOTIFICATION MANAGER
+// ─────────────────────────────────────────────
+// This class manages escalating reminders for officers about unresolved SOS alerts.
+// Schedule:
+//   0 – 60s      → remind every 10s
+//   60s – 10min  → remind every 60s
+//   10min – 60min→ remind every 10min
+//   60min+       → remind every 60min
+class SOSEscalationManager {
+  // Map of alertId -> timer for that alert
+  static final Map<String, Timer> _timers = {};
+  // Map of alertId -> when that alert started (first seen by officer)
+  static final Map<String, DateTime> _alertStartTimes = {};
+  // Map of alertId -> last notification time
+  static final Map<String, DateTime> _lastNotified = {};
+  // Map of alertId -> alert data snapshot
+  static final Map<String, Map<String, dynamic>> _alertData = {};
+
+  /// Call this when a new SOS alert is detected by the officer dashboard.
+  static void startEscalation(String alertId, Map<String, dynamic> data) {
+    if (_timers.containsKey(alertId)) return; // Already tracking this alert
+    _alertStartTimes[alertId] = DateTime.now();
+    _lastNotified[alertId] = DateTime.now();
+    _alertData[alertId] = data;
+
+    // Fire first notification immediately
+    _notify(alertId, data);
+
+    // Start a timer that checks every second what interval we're in
+    // and fires when appropriate
+    _timers[alertId] = Timer.periodic(const Duration(seconds: 1), (_) {
+      _checkAndNotify(alertId);
+    });
+  }
+
+  /// Call this when an alert is resolved or cancelled — stops the reminders.
+  static void stopEscalation(String alertId) {
+    _timers[alertId]?.cancel();
+    _timers.remove(alertId);
+    _alertStartTimes.remove(alertId);
+    _lastNotified.remove(alertId);
+    _alertData.remove(alertId);
+  }
+
+  /// Stop all escalations (e.g. when officer switches out of officer mode)
+  static void stopAll() {
+    for (final timer in _timers.values) {
+      timer.cancel();
+    }
+    _timers.clear();
+    _alertStartTimes.clear();
+    _lastNotified.clear();
+    _alertData.clear();
+  }
+
+  /// Update the stored data for an alert (e.g. location changed)
+  static void updateAlertData(String alertId, Map<String, dynamic> data) {
+    if (_alertData.containsKey(alertId)) {
+      _alertData[alertId] = data;
+    }
+  }
+
+  static void _checkAndNotify(String alertId) {
+    final start = _alertStartTimes[alertId];
+    final lastNotify = _lastNotified[alertId];
+    final data = _alertData[alertId];
+    if (start == null || lastNotify == null || data == null) return;
+
+    final ageSeconds = DateTime.now().difference(start).inSeconds;
+    final secondsSinceNotify = DateTime.now().difference(lastNotify).inSeconds;
+
+    // Determine required interval based on SOS age
+    int requiredIntervalSeconds;
+    if (ageSeconds < 60) {
+      requiredIntervalSeconds = 10; // Every 10s in first minute
+    } else if (ageSeconds < 600) {
+      requiredIntervalSeconds = 60; // Every 60s from 1min to 10min
+    } else if (ageSeconds < 3600) {
+      requiredIntervalSeconds = 600; // Every 10min from 10min to 60min
+    } else {
+      requiredIntervalSeconds = 3600; // Every 60min after 60min
+    }
+
+    if (secondsSinceNotify >= requiredIntervalSeconds) {
+      _notify(alertId, data);
+      _lastNotified[alertId] = DateTime.now();
+    }
+  }
+
+  static Future<void> _notify(
+      String alertId, Map<String, dynamic> data) async {
+    final name = data['userName'] ?? 'Unknown';
+    final lat = (data['lat'] as num?)?.toStringAsFixed(4) ?? '';
+    final lng = (data['lng'] as num?)?.toStringAsFixed(4) ?? '';
+
+    final start = _alertStartTimes[alertId];
+    String ageLabel = '';
+    if (start != null) {
+      final age = DateTime.now().difference(start);
+      if (age.inMinutes < 1) {
+        ageLabel = '${age.inSeconds}s ago';
+      } else if (age.inHours < 1) {
+        ageLabel = '${age.inMinutes}m ago';
+      } else {
+        ageLabel = '${age.inHours}h ${age.inMinutes.remainder(60)}m ago';
+      }
+    }
+
+    // Use alertId hashCode as notification ID so each alert has its own notification
+    final notificationId = alertId.hashCode.abs() % 10000;
+    await showAlertNotification(
+      name,
+      '📍 $lat, $lng  •  Started $ageLabel',
+      notificationId: notificationId,
+    );
+  }
+
+  /// Returns list of currently tracked alert IDs
+  static Set<String> get trackedAlertIds => _timers.keys.toSet();
 }
 
 // ─────────────────────────────────────────────
@@ -188,7 +310,6 @@ class CompanyConfig {
   final bool isActive;
   final int maxDevices;
   final String emergencyPhone;
-
   final bool isTrial;
   final String trialEnds;
 
@@ -272,7 +393,6 @@ Future<void> saveRole(String role) async {
   await prefs.setString('device_role', role);
 }
 
-// Save full company data locally so app works offline
 Future<void> saveCompanyData(CompanyConfig company) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString('company_name', company.name);
@@ -407,14 +527,10 @@ class _AppEntryState extends State<AppEntry> {
         return;
       }
 
-      // Always load from SharedPreferences first — works offline instantly
       currentRole = await getSavedRole();
       currentCompany = await getCompanyData(companyId);
-
-      // Show app immediately with cached data
       setState(() => _loading = false);
 
-      // Then try to refresh from Firestore in background if online
       final connected = await hasInternet();
       if (!connected) return;
 
@@ -460,13 +576,10 @@ class _AppEntryState extends State<AppEntry> {
         ),
       );
     }
-    if (currentCompany == null) {
-      return const CompanyRegistrationScreen();
-    }
+    if (currentCompany == null) return const CompanyRegistrationScreen();
     if (!currentCompany!.isActive) {
       return SubscriptionSuspendedScreen(company: currentCompany!);
     }
-    // Check trial expiry
     if (currentCompany!.isTrialExpired) {
       return TrialExpiredScreen(company: currentCompany!);
     }
@@ -614,8 +727,7 @@ class _CompanyRegistrationScreenState
               const Icon(Icons.shield, size: 80, color: Colors.red),
               const SizedBox(height: 16),
               const Text("Welcome",
-                  style:
-                      TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               const Text(
                 "Enter the registration code provided by your administrator.",
@@ -656,8 +768,7 @@ class _CompanyRegistrationScreenState
                       : const Icon(Icons.login),
                   label: Text(_loading ? "Registering..." : "REGISTER DEVICE",
                       style: const TextStyle(fontSize: 16)),
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                   onPressed: _loading ? null : _register,
                 ),
               ),
@@ -687,22 +798,20 @@ class TrialExpiredScreen extends StatelessWidget {
             children: [
               const Icon(Icons.timer_off, size: 80, color: Colors.orange),
               const SizedBox(height: 24),
-              Text(
-                company.name,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
+              Text(company.name,
+                  style: const TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              const Text(
-                'Your 14-day free trial has expired.',
-                style: TextStyle(fontSize: 18, color: Colors.orange),
-                textAlign: TextAlign.center,
-              ),
+              const Text('Your 14-day free trial has expired.',
+                  style: TextStyle(fontSize: 18, color: Colors.orange),
+                  textAlign: TextAlign.center),
               const SizedBox(height: 12),
               const Text(
                 'To continue using the service, please subscribe at cyberwarriors.co.za or contact us directly.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 15, height: 1.5),
+                style:
+                    TextStyle(color: Colors.grey, fontSize: 15, height: 1.5),
               ),
               const SizedBox(height: 40),
               SizedBox(
@@ -710,10 +819,13 @@ class TrialExpiredScreen extends StatelessWidget {
                 height: 54,
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.language),
-                  label: const Text('Subscribe Now', style: TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  label: const Text('Subscribe Now',
+                      style: TextStyle(fontSize: 16)),
+                  style:
+                      ElevatedButton.styleFrom(backgroundColor: Colors.red),
                   onPressed: () => launchUrl(
-                    Uri.parse('https://c42die4.github.io/guardian-sos-signup/signup.html'),
+                    Uri.parse(
+                        'https://c42die4.github.io/guardian-sos-signup/signup.html'),
                     mode: LaunchMode.externalApplication,
                   ),
                 ),
@@ -724,17 +836,20 @@ class TrialExpiredScreen extends StatelessWidget {
                 height: 54,
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.call),
-                  label: const Text('Call Cyber Warriors', style: TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[800]),
-                  onPressed: () => launchUrl(Uri.parse('tel:+27000000000')),
+                  label: const Text('Call Cyber Warriors',
+                      style: TextStyle(fontSize: 16)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[800]),
+                  onPressed: () =>
+                      launchUrl(Uri.parse('tel:+27000000000')),
                 ),
               ),
               const SizedBox(height: 12),
               TextButton(
-                onPressed: () => launchUrl(
-                  Uri.parse('mailto:info@cyberwarriors.co.za?subject=Trial%20Expired%20-%20${Uri.encodeComponent(company.name)}'),
-                ),
-                child: const Text('Email Us', style: TextStyle(color: Colors.grey)),
+                onPressed: () => launchUrl(Uri.parse(
+                    'mailto:info@cyberwarriors.co.za?subject=Trial%20Expired%20-%20${Uri.encodeComponent(company.name)}')),
+                child: const Text('Email Us',
+                    style: TextStyle(color: Colors.grey)),
               ),
             ],
           ),
@@ -771,11 +886,9 @@ class SubscriptionSuspendedScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 18, color: Colors.orange),
                   textAlign: TextAlign.center),
               const SizedBox(height: 12),
-              const Text(
-                "Please contact support to restore access.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 15),
-              ),
+              const Text("Please contact support to restore access.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 15)),
               const SizedBox(height: 40),
               SizedBox(
                 width: double.infinity,
@@ -786,7 +899,8 @@ class SubscriptionSuspendedScreen extends StatelessWidget {
                       style: TextStyle(fontSize: 16)),
                   style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange[800]),
-                  onPressed: () => launchUrl(Uri.parse('tel:+27000000000')),
+                  onPressed: () =>
+                      launchUrl(Uri.parse('tel:+27000000000')),
                 ),
               ),
             ],
@@ -823,7 +937,6 @@ class _AppShellState extends State<AppShell> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-
     await _notifications
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
@@ -856,9 +969,11 @@ class _AppShellState extends State<AppShell> {
       data: ThemeData(
         brightness: Brightness.dark,
         primaryColor: widget.company.primaryColor,
-        colorScheme: ColorScheme.dark(primary: widget.company.primaryColor),
+        colorScheme:
+            ColorScheme.dark(primary: widget.company.primaryColor),
         appBarTheme: AppBarTheme(
-          backgroundColor: widget.company.primaryColor.withOpacity(0.2),
+          backgroundColor:
+              widget.company.primaryColor.withOpacity(0.2),
         ),
       ),
       child: Scaffold(
@@ -897,8 +1012,8 @@ class _AppShellState extends State<AppShell> {
                   await Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) =>
-                              const ProfileScreen(isFirstTime: false)));
+                          builder: (_) => const ProfileScreen(
+                              isFirstTime: false)));
                   setState(() {});
                 },
               ),
@@ -906,7 +1021,11 @@ class _AppShellState extends State<AppShell> {
               Switch(
                   value: isOfficerMode,
                   activeThumbColor: Colors.blueAccent,
-                  onChanged: (v) => setState(() => isOfficerMode = v)),
+                  onChanged: (v) {
+                    // Stop all escalations when leaving officer mode
+                    if (!v) SOSEscalationManager.stopAll();
+                    setState(() => isOfficerMode = v);
+                  }),
               const Icon(Icons.security),
               const SizedBox(width: 10),
             ],
@@ -1041,22 +1160,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: Colors.red, size: 20),
-              const SizedBox(width: 8),
-              Text(title,
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red)),
-            ],
-          ),
+          Row(children: [
+            Icon(icon, color: Colors.red, size: 20),
+            const SizedBox(width: 8),
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red)),
+          ]),
           if (subtitle != null)
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 4),
               child: Text(subtitle,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  style:
+                      const TextStyle(color: Colors.grey, fontSize: 12)),
             ),
           const SizedBox(height: 8),
         ],
@@ -1096,15 +1214,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.person, color: Colors.green, size: 16),
-              const SizedBox(width: 6),
-              Text(label,
-                  style: const TextStyle(
-                      color: Colors.green, fontWeight: FontWeight.bold)),
-            ],
-          ),
+          Row(children: [
+            const Icon(Icons.person, color: Colors.green, size: 16),
+            const SizedBox(width: 6),
+            Text(label,
+                style: const TextStyle(
+                    color: Colors.green, fontWeight: FontWeight.bold)),
+          ]),
           const SizedBox(height: 8),
           TextFormField(
             controller: nameCtrl,
@@ -1157,8 +1273,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title:
-            Text(widget.isFirstTime ? "Setup Your Profile" : "Edit Profile"),
+        title: Text(
+            widget.isFirstTime ? "Setup Your Profile" : "Edit Profile"),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -1179,7 +1295,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: TextStyle(fontSize: 14),
                       ),
                     ),
-                  _sectionHeader("Personal Information", Icons.person),
+                  _sectionHeader(
+                      "Personal Information", Icons.person),
                   _field("Full Name", _nameCtrl, required: true),
                   _field("ID Number", _idCtrl,
                       keyboardType: TextInputType.number),
@@ -1189,14 +1306,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _sectionHeader(
                       "Medical Information", Icons.medical_services),
                   _field("Allergies", _allergiesCtrl, maxLines: 2),
-                  _field("Medical Conditions", _conditionsCtrl, maxLines: 2),
-                  _field("Current Medications", _medicationsCtrl, maxLines: 2),
-                  _sectionHeader("Emergency Contact 1", Icons.contact_phone),
+                  _field("Medical Conditions", _conditionsCtrl,
+                      maxLines: 2),
+                  _field("Current Medications", _medicationsCtrl,
+                      maxLines: 2),
+                  _sectionHeader(
+                      "Emergency Contact 1", Icons.contact_phone),
                   _field("Contact Name", _contact1NameCtrl),
                   _field("Phone Number", _contact1PhoneCtrl,
                       keyboardType: TextInputType.phone),
                   _field("Relationship", _contact1RelCtrl),
-                  _sectionHeader("Emergency Contact 2", Icons.contact_phone),
+                  _sectionHeader(
+                      "Emergency Contact 2", Icons.contact_phone),
                   _field("Contact Name", _contact2NameCtrl),
                   _field("Phone Number", _contact2PhoneCtrl,
                       keyboardType: TextInputType.phone),
@@ -1210,9 +1331,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle:
                         "These contacts receive a WhatsApp message with your location when you trigger SOS.",
                   ),
-                  _waContactBlock("Contact 1", _wa1NameCtrl, _wa1PhoneCtrl),
-                  _waContactBlock("Contact 2", _wa2NameCtrl, _wa2PhoneCtrl),
-                  _waContactBlock("Contact 3", _wa3NameCtrl, _wa3PhoneCtrl),
+                  _waContactBlock(
+                      "Contact 1", _wa1NameCtrl, _wa1PhoneCtrl),
+                  _waContactBlock(
+                      "Contact 2", _wa2NameCtrl, _wa2PhoneCtrl),
+                  _waContactBlock(
+                      "Contact 3", _wa3NameCtrl, _wa3PhoneCtrl),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -1223,9 +1347,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
+                                  strokeWidth: 2,
+                                  color: Colors.white))
                           : const Icon(Icons.save),
-                      label: Text(_saving ? "Saving..." : "SAVE PROFILE",
+                      label: Text(
+                          _saving ? "Saving..." : "SAVE PROFILE",
                           style: const TextStyle(fontSize: 16)),
                       style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red),
@@ -1330,7 +1456,8 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                 style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style:
+                ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text("Yes, cancel SOS"),
           ),
@@ -1342,7 +1469,10 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
       await FirebaseFirestore.instance
           .collection('alerts')
           .doc(widget.alertId)
-          .update({'status': 'CANCELLED'});
+          .update({
+        'status': 'CANCELLED',
+        'cancelledAt': FieldValue.serverTimestamp(),
+      });
       await stopLocationService();
       Vibration.vibrate(duration: 300);
       widget.onCancel();
@@ -1366,29 +1496,27 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
           padding: const EdgeInsets.all(24.0),
           child: Column(
             children: [
-              Row(
-                children: [
-                  if (widget.company.logoUrl.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Image.network(
-                        widget.company.logoUrl,
-                        height: 32,
-                        width: 32,
-                        errorBuilder: (_, __, ___) =>
-                            Icon(Icons.security, color: color),
-                      ),
-                    ),
-                  Flexible(
-                    child: Text(
-                      widget.company.name,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
+              Row(children: [
+                if (widget.company.logoUrl.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Image.network(
+                      widget.company.logoUrl,
+                      height: 32,
+                      width: 32,
+                      errorBuilder: (_, __, ___) =>
+                          Icon(Icons.security, color: color),
                     ),
                   ),
-                ],
-              ),
+                Flexible(
+                  child: Text(
+                    widget.company.name,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ]),
               const Spacer(),
               ScaleTransition(
                 scale: _pulseAnimation,
@@ -1400,10 +1528,9 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                     color: Colors.red[900],
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.red.withOpacity(0.6),
-                        blurRadius: 40,
-                        spreadRadius: 10,
-                      )
+                          color: Colors.red.withOpacity(0.6),
+                          blurRadius: 40,
+                          spreadRadius: 10)
                     ],
                   ),
                   child: const Column(
@@ -1421,13 +1548,11 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                "Help is on the way!",
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
-              ),
+              const Text("Help is on the way!",
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
               const SizedBox(height: 8),
               Text(
                 "Stay calm. Your location is being tracked and shared with responding officers.",
@@ -1436,8 +1561,8 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
               ),
               const SizedBox(height: 20),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.grey[900],
                   borderRadius: BorderRadius.circular(8),
@@ -1465,17 +1590,15 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.chat, color: Colors.green, size: 16),
-                          SizedBox(width: 6),
-                          Text("WhatsApp alerts sent to:",
-                              style: TextStyle(
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13)),
-                        ],
-                      ),
+                      const Row(children: [
+                        Icon(Icons.chat, color: Colors.green, size: 16),
+                        SizedBox(width: 6),
+                        Text("WhatsApp alerts sent to:",
+                            style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
+                      ]),
                       const SizedBox(height: 6),
                       ...contacts.map((c) => Text("• $c",
                           style: const TextStyle(
@@ -1490,13 +1613,14 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                   height: 54,
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.call),
-                    label: Text("CALL ${widget.company.name.toUpperCase()}",
+                    label: Text(
+                        "CALL ${widget.company.name.toUpperCase()}",
                         style: const TextStyle(fontSize: 15)),
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green[700],
                         padding: const EdgeInsets.all(14)),
-                    onPressed: () => launchUrl(
-                        Uri.parse('tel:${widget.company.emergencyPhone}')),
+                    onPressed: () => launchUrl(Uri.parse(
+                        'tel:${widget.company.emergencyPhone}')),
                   ),
                 ),
               const SizedBox(height: 12),
@@ -1553,9 +1677,9 @@ class _SOSScreenState extends State<SOSScreen>
     _checkConnectivity();
     _connectivityTimer = Timer.periodic(
         const Duration(seconds: 5), (_) => _checkConnectivity());
-    _controller =
-        AnimationController(vsync: this, duration: const Duration(seconds: 3))
-          ..addListener(() => setState(() => _progress = _controller.value));
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(seconds: 3))
+      ..addListener(() => setState(() => _progress = _controller.value));
   }
 
   @override
@@ -1616,7 +1740,6 @@ class _SOSScreenState extends State<SOSScreen>
   void _triggerSOS() async {
     _stopHolding();
 
-    // Check internet connectivity first
     final connected = await hasInternet();
     if (!connected) {
       if (mounted) {
@@ -1624,13 +1747,11 @@ class _SOSScreenState extends State<SOSScreen>
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: Colors.grey[900],
-            title: const Row(
-              children: [
-                Icon(Icons.wifi_off, color: Colors.red, size: 24),
-                SizedBox(width: 8),
-                Text('No Internet Connection'),
-              ],
-            ),
+            title: const Row(children: [
+              Icon(Icons.wifi_off, color: Colors.red, size: 24),
+              SizedBox(width: 8),
+              Text('No Internet Connection'),
+            ]),
             content: const Text(
               'Cannot send SOS — your phone has no internet connection.\n\n'
               'Please enable WiFi or mobile data, then try again.\n\n'
@@ -1640,12 +1761,14 @@ class _SOSScreenState extends State<SOSScreen>
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Close', style: TextStyle(color: Colors.grey)),
+                child: const Text('Close',
+                    style: TextStyle(color: Colors.grey)),
               ),
               ElevatedButton.icon(
                 icon: const Icon(Icons.call),
                 label: const Text('Call 112'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red),
                 onPressed: () {
                   Navigator.of(ctx).pop();
                   launchUrl(Uri.parse('tel:112'));
@@ -1671,6 +1794,7 @@ class _SOSScreenState extends State<SOSScreen>
         'lng': pos.longitude,
         'status': 'ACTIVE',
         'timestamp': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
         'profile': profile,
         'companyId': widget.company.id,
       });
@@ -1682,16 +1806,14 @@ class _SOSScreenState extends State<SOSScreen>
 
       await startLocationService(doc.id, widget.company.id);
 
-      if (mounted) {
-        setState(() => _sosActive = true);
-      }
+      if (mounted) setState(() => _sosActive = true);
 
       await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude);
     } catch (e) {
       debugPrint("SOS Error: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Failed to send SOS: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Failed to send SOS: $e")));
       }
     }
   }
@@ -1751,23 +1873,21 @@ class _SOSScreenState extends State<SOSScreen>
           Container(
             width: double.infinity,
             color: Colors.red[900],
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                const Icon(Icons.wifi_off, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    '⚠️ No internet — SOS will not work. Enable WiFi or mobile data.',
-                    style: TextStyle(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: const Row(children: [
+              Icon(Icons.wifi_off, color: Colors.white, size: 18),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '⚠️ No internet — SOS will not work. Enable WiFi or mobile data.',
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                      fontWeight: FontWeight.bold),
                 ),
-              ],
-            ),
+              ),
+            ]),
           ),
         Expanded(
           child: SingleChildScrollView(
@@ -1791,7 +1911,8 @@ class _SOSScreenState extends State<SOSScreen>
                       await FirebaseFirestore.instance
                           .collection('profiles')
                           .doc(id)
-                          .set({'name': val.trim()}, SetOptions(merge: true));
+                          .set({'name': val.trim()},
+                              SetOptions(merge: true));
                     },
                   ),
                   SizedBox(height: keyboardOpen ? 20 : 60),
@@ -1813,7 +1934,9 @@ class _SOSScreenState extends State<SOSScreen>
                           width: buttonSize,
                           height: buttonSize,
                           decoration: BoxDecoration(
-                              color: _isHolding ? color.withOpacity(0.7) : color,
+                              color: _isHolding
+                                  ? color.withOpacity(0.7)
+                                  : color,
                               shape: BoxShape.circle),
                           child: Center(
                               child: Text("HOLD\nSOS",
@@ -1832,7 +1955,8 @@ class _SOSScreenState extends State<SOSScreen>
                         : "Hold for 3 seconds to send SOS",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                        color: _isHolding ? color : Colors.grey, fontSize: 16),
+                        color: _isHolding ? color : Colors.grey,
+                        fontSize: 16),
                   ),
                 ],
               ),
@@ -1845,9 +1969,8 @@ class _SOSScreenState extends State<SOSScreen>
 }
 
 // ─────────────────────────────────────────────
-// CONNECTIVITY BANNER WIDGET
+// HUD SCREEN
 // ─────────────────────────────────────────────
-// ─── HUD Navigation Screen ───────────────────────────────────────────────────
 class HUDScreen extends StatefulWidget {
   final double targetLat;
   final double targetLng;
@@ -1876,14 +1999,14 @@ class _HUDScreenState extends State<HUDScreen>
   late AnimationController _arrowController;
   late Animation<double> _arrowAnimation;
 
-  // Routing
   List<String> _steps = [];
   String _currentStep = '';
   String _nextStep = '';
   double _stepDistance = 0;
   bool _loadingRoute = false;
   String _routeError = '';
-  static const _orsKey = '5b3ce3597851110001cf62480c1176b45bc84daca07549bef1cc40b6';
+  static const _orsKey =
+      '5b3ce3597851110001cf62480c1176b45bc84daca07549bef1cc40b6';
 
   @override
   void initState() {
@@ -1912,7 +2035,6 @@ class _HUDScreenState extends State<HUDScreen>
       ),
     ).listen((pos) {
       _updatePosition(pos);
-      // Refresh route every 200m
       if (_steps.isEmpty || _distance.remainder(200) < 20) {
         _fetchRoute(pos);
       }
@@ -1921,7 +2043,10 @@ class _HUDScreenState extends State<HUDScreen>
 
   Future<void> _fetchRoute(Position pos) async {
     if (_loadingRoute) return;
-    setState(() { _loadingRoute = true; _routeError = ''; });
+    setState(() {
+      _loadingRoute = true;
+      _routeError = '';
+    });
     try {
       final url = Uri.parse(
         'https://api.openrouteservice.org/v2/directions/driving-car'
@@ -1933,12 +2058,14 @@ class _HUDScreenState extends State<HUDScreen>
       final request = await client.getUrl(url);
       request.headers.set('Accept', 'application/json, application/geo+json');
       final response = await request.close();
-      final body = await response.transform(const Utf8Decoder()).join();
+      final body =
+          await response.transform(const Utf8Decoder()).join();
       client.close();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(body);
-        final segments = data['features'][0]['properties']['segments'];
+        final segments =
+            data['features'][0]['properties']['segments'];
         if (segments != null && segments.isNotEmpty) {
           final steps = segments[0]['steps'] as List;
           final instructions = steps
@@ -1946,14 +2073,18 @@ class _HUDScreenState extends State<HUDScreen>
               .where((s) => s.isNotEmpty)
               .toList();
           final distances = steps
-              .map<double>((s) => (s['distance'] as num?)?.toDouble() ?? 0)
+              .map<double>(
+                  (s) => (s['distance'] as num?)?.toDouble() ?? 0)
               .toList();
 
           setState(() {
             _steps = instructions;
-            _currentStep = instructions.isNotEmpty ? instructions[0] : '';
-            _nextStep = instructions.length > 1 ? instructions[1] : '';
-            _stepDistance = distances.isNotEmpty ? distances[0] : 0;
+            _currentStep =
+                instructions.isNotEmpty ? instructions[0] : '';
+            _nextStep =
+                instructions.length > 1 ? instructions[1] : '';
+            _stepDistance =
+                distances.isNotEmpty ? distances[0] : 0;
             _loadingRoute = false;
           });
         }
@@ -1974,12 +2105,16 @@ class _HUDScreenState extends State<HUDScreen>
   void _updatePosition(Position pos) {
     if (!mounted) return;
     final bearing = Geolocator.bearingBetween(
-      pos.latitude, pos.longitude,
-      widget.targetLat, widget.targetLng,
+      pos.latitude,
+      pos.longitude,
+      widget.targetLat,
+      widget.targetLng,
     );
     final distance = Geolocator.distanceBetween(
-      pos.latitude, pos.longitude,
-      widget.targetLat, widget.targetLng,
+      pos.latitude,
+      pos.longitude,
+      widget.targetLat,
+      widget.targetLng,
     );
 
     _arrowAnimation = Tween<double>(
@@ -2012,9 +2147,11 @@ class _HUDScreenState extends State<HUDScreen>
     final lower = instruction.toLowerCase();
     if (lower.contains('left')) return Icons.turn_left;
     if (lower.contains('right')) return Icons.turn_right;
-    if (lower.contains('straight') || lower.contains('continue')) return Icons.straight;
+    if (lower.contains('straight') || lower.contains('continue'))
+      return Icons.straight;
     if (lower.contains('roundabout')) return Icons.roundabout_left;
-    if (lower.contains('arrive') || lower.contains('destination')) return Icons.location_on;
+    if (lower.contains('arrive') || lower.contains('destination'))
+      return Icons.location_on;
     if (lower.contains('u-turn')) return Icons.u_turn_left;
     return Icons.navigation;
   }
@@ -2035,100 +2172,117 @@ class _HUDScreenState extends State<HUDScreen>
       child: SafeArea(
         child: Column(
           children: [
-            // Top bar
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                    icon: const Icon(Icons.close,
+                        color: Colors.white, size: 28),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
-                  Text(
-                    widget.clientName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text(widget.clientName,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold)),
                   IconButton(
                     icon: Icon(
-                      _hudMode ? Icons.visibility : Icons.visibility_off,
-                      color: Colors.red, size: 28,
+                      _hudMode
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      color: Colors.red,
+                      size: 28,
                     ),
-                    onPressed: () => setState(() => _hudMode = !_hudMode),
+                    onPressed: () =>
+                        setState(() => _hudMode = !_hudMode),
                   ),
                 ],
               ),
             ),
-
-            // Total distance
             Text(
-              _myPosition == null ? 'Locating...' : _formatDistance(_distance),
+              _myPosition == null
+                  ? 'Locating...'
+                  : _formatDistance(_distance),
               style: TextStyle(
-                color: _distance < 200 ? Colors.green : Colors.red,
-                fontSize: 48,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-              ),
+                  color:
+                      _distance < 200 ? Colors.green : Colors.red,
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2),
             ),
             Text(
               _distance < 200 ? 'ARRIVING' : 'TO CLIENT',
-              style: const TextStyle(color: Colors.white38, fontSize: 13, letterSpacing: 4),
+              style: const TextStyle(
+                  color: Colors.white38,
+                  fontSize: 13,
+                  letterSpacing: 4),
             ),
-
             const SizedBox(height: 12),
-
-            // TURN INSTRUCTION BOX
             if (_loadingRoute)
               const Padding(
                 padding: EdgeInsets.all(8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white38)),
+                    SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white38)),
                     SizedBox(width: 8),
-                    Text('Getting directions...', style: TextStyle(color: Colors.white38, fontSize: 13)),
+                    Text('Getting directions...',
+                        style: TextStyle(
+                            color: Colors.white38, fontSize: 13)),
                   ],
                 ),
               )
             else if (_routeError.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(_routeError,
-                    style: const TextStyle(color: Colors.orange, fontSize: 13)),
+                    style: const TextStyle(
+                        color: Colors.orange, fontSize: 13)),
               )
             else if (hasRoute) ...[
-              // Current instruction
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 12),
+                margin:
+                    const EdgeInsets.symmetric(horizontal: 12),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: Colors.grey[900],
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withOpacity(0.5)),
+                  border:
+                      Border.all(color: color.withOpacity(0.5)),
                 ),
                 child: Row(
                   children: [
-                    Icon(_stepIcon(_currentStep), color: color, size: 40),
+                    Icon(_stepIcon(_currentStep),
+                        color: color, size: 40),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
                           Text(
                             _formatStepDistance(_stepDistance),
-                            style: TextStyle(color: color, fontSize: 14,
+                            style: TextStyle(
+                                color: color,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             _currentStep,
-                            style: const TextStyle(color: Colors.white,
-                                fontSize: 16, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -2138,19 +2292,21 @@ class _HUDScreenState extends State<HUDScreen>
                   ],
                 ),
               ),
-
-              // Next instruction
               if (_nextStep.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 6),
                   child: Row(
                     children: [
-                      Icon(_stepIcon(_nextStep), color: Colors.white38, size: 20),
+                      Icon(_stepIcon(_nextStep),
+                          color: Colors.white38, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Then: $_nextStep',
-                          style: const TextStyle(color: Colors.white38, fontSize: 12),
+                          style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -2159,28 +2315,28 @@ class _HUDScreenState extends State<HUDScreen>
                   ),
                 ),
             ],
-
-            // Arrow
             Expanded(
               child: Center(
                 child: AnimatedBuilder(
                   animation: _arrowAnimation,
                   builder: (_, __) => Transform.rotate(
                     angle: _arrowAnimation.value,
-                    child: Icon(Icons.navigation, color: color, size: 120),
+                    child: Icon(Icons.navigation,
+                        color: color, size: 120),
                   ),
                 ),
               ),
             ),
-
-            // Bottom label
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
                 _hudMode
                     ? 'HUD MODE — Place phone on dashboard'
                     : 'NORMAL MODE — Tap 👁 to flip for windscreen',
-                style: const TextStyle(color: Colors.white24, fontSize: 11, letterSpacing: 1),
+                style: const TextStyle(
+                    color: Colors.white24,
+                    fontSize: 11,
+                    letterSpacing: 1),
               ),
             ),
           ],
@@ -2200,67 +2356,6 @@ class _HUDScreenState extends State<HUDScreen>
               child: _buildContent(),
             )
           : _buildContent(),
-    );
-  }
-}
-
-
-class _ConnectivityBanner extends StatefulWidget {
-  @override
-  State<_ConnectivityBanner> createState() => _ConnectivityBannerState();
-}
-
-class _ConnectivityBannerState extends State<_ConnectivityBanner> {
-  bool _isConnected = true;
-  Timer? _checkTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkNow();
-    // Check every 5 seconds
-    _checkTimer = Timer.periodic(const Duration(seconds: 5), (_) => _checkNow());
-  }
-
-  Future<void> _checkNow() async {
-    final connected = await hasInternet();
-    if (mounted) setState(() => _isConnected = connected);
-  }
-
-  @override
-  void dispose() {
-    _checkTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isConnected) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      color: Colors.red[900],
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          const Icon(Icons.wifi_off, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text(
-              '⚠️ No internet — SOS will not work. Enable WiFi or mobile data.',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => launchUrl(Uri.parse('app-settings:')),
-            child: const Text('Settings',
-                style: TextStyle(color: Colors.white, fontSize: 12)),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -2285,25 +2380,20 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   bool _panelOpen = false;
 
   @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
   void dispose() {
+    // Stop all escalation timers when dashboard is closed
+    SOSEscalationManager.stopAll();
     super.dispose();
   }
 
   void _playSiren(List<QueryDocumentSnapshot> alerts) {
     final latestData =
         alerts.isNotEmpty ? alerts.last.data() as Map<String, dynamic> : null;
-    // Always show notification regardless of mute
     showAlertNotification(
       latestData?['userName'] ?? 'Unknown',
       '${latestData?['lat']?.toStringAsFixed(4) ?? ''}, '
           '${latestData?['lng']?.toStringAsFixed(4) ?? ''}',
     );
-    // Only play sound and vibrate if not muted
     if (!_isMuted) {
       SystemSound.play(SystemSoundType.alert);
       Vibration.vibrate(pattern: [0, 500, 200, 500, 200, 500]);
@@ -2324,7 +2414,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   void _navigateTo(Map<String, dynamic> data) async {
     final lat = (data['lat'] as num).toDouble();
     final lng = (data['lng'] as num).toDouble();
-    final name = data['userName'] ?? 'Client';
 
     final choice = await showDialog<String>(
       context: context,
@@ -2339,30 +2428,26 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
             const Text('Choose navigation mode:',
                 style: TextStyle(color: Colors.white70)),
             const SizedBox(height: 16),
-            // Google Maps normal
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.map),
                 label: const Text('Google Maps — Normal'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  padding: const EdgeInsets.all(14),
-                ),
+                    backgroundColor: Colors.blue,
+                    padding: const EdgeInsets.all(14)),
                 onPressed: () => Navigator.of(ctx).pop('maps'),
               ),
             ),
             const SizedBox(height: 8),
-            // Google Maps HUD mode
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.remove_red_eye),
                 label: const Text('Google Maps — HUD Mode'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  padding: const EdgeInsets.all(14),
-                ),
+                    backgroundColor: Colors.red,
+                    padding: const EdgeInsets.all(14)),
                 onPressed: () => Navigator.of(ctx).pop('hud'),
               ),
             ),
@@ -2378,25 +2463,19 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
 
     if (choice == 'maps') {
-      // Open Google Maps navigation normally
       final uri = Uri.parse(
           'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else if (choice == 'hud') {
-      // Open Google Maps in HUD mode using the dedicated HUD URL scheme
-      // This opens Google Maps navigation and the officer can enable HUD in Google Maps
-      final googleMapsHud = Uri.parse(
-          'google.navigation:q=$lat,$lng&mode=d');
+      final googleMapsHud = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
       if (await canLaunchUrl(googleMapsHud)) {
         await launchUrl(googleMapsHud,
             mode: LaunchMode.externalNonBrowserApplication);
       } else {
-        // Fallback — open web Google Maps
         final fallback = Uri.parse(
             'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
         await launchUrl(fallback, mode: LaunchMode.externalApplication);
       }
-      // Show HUD overlay instruction
       if (mounted) {
         showDialog(
           context: context,
@@ -2409,7 +2488,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Once Google Maps opens:',
-                    style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    style:
+                        TextStyle(color: Colors.white70, fontSize: 13)),
                 SizedBox(height: 12),
                 Text('1. Tap the ⋮ menu (top right)',
                     style: TextStyle(color: Colors.white, fontSize: 14)),
@@ -2420,13 +2500,16 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                 Text('3. Place phone on dashboard',
                     style: TextStyle(color: Colors.white, fontSize: 14)),
                 SizedBox(height: 12),
-                Text('Google Maps HUD reflects perfectly off your windscreen.',
-                    style: TextStyle(color: Colors.white38, fontSize: 12)),
+                Text(
+                    'Google Maps HUD reflects perfectly off your windscreen.',
+                    style:
+                        TextStyle(color: Colors.white38, fontSize: 12)),
               ],
             ),
             actions: [
               ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red),
                 onPressed: () => Navigator.of(ctx).pop(),
                 child: const Text('Got it'),
               ),
@@ -2437,15 +2520,58 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     }
   }
 
+  // ─────────────────────────────────────────────
+  // RESOLVE ALERT — logs officer name + timestamp
+  // ─────────────────────────────────────────────
   Future<void> _resolveAlert(String id) async {
-    await FirebaseFirestore.instance
-        .collection('alerts')
-        .doc(id)
-        .update({'status': 'RESOLVED'});
-    setState(() {
-      _selectedAlert = null;
-      _selectedAlertId = null;
-    });
+    try {
+      // Get officer's device ID and look up their profile name
+      final deviceId = await getDeviceId();
+      final profileDoc = await FirebaseFirestore.instance
+          .collection('profiles')
+          .doc(deviceId)
+          .get();
+
+      final officerName = (profileDoc.exists &&
+              (profileDoc.data()?['name'] ?? '').isNotEmpty)
+          ? profileDoc.data()!['name'] as String
+          : 'Officer ($deviceId)';
+
+      // Update the alert with resolution details
+      await FirebaseFirestore.instance
+          .collection('alerts')
+          .doc(id)
+          .update({
+        'status': 'RESOLVED',
+        'resolvedAt': FieldValue.serverTimestamp(),
+        'resolvedBy': officerName,
+        'resolvedByDeviceId': deviceId,
+      });
+
+      // Stop escalation reminders for this specific alert
+      SOSEscalationManager.stopEscalation(id);
+
+      setState(() {
+        _selectedAlert = null;
+        _selectedAlertId = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Alert resolved by $officerName'),
+            backgroundColor: Colors.green[800],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Resolve error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to resolve alert: $e')),
+        );
+      }
+    }
   }
 
   String _lastSeen(dynamic timestamp) {
@@ -2463,7 +2589,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       isScrollControlled: true,
       backgroundColor: Colors.grey[900],
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.75,
         minChildSize: 0.4,
@@ -2484,8 +2611,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
             ),
             const SizedBox(height: 16),
             const Text("Emergency Profile",
-                style:
-                    TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.bold)),
             const Divider(height: 24),
             _profileSection("Personal Information", Icons.person, [
               _profileRow("Name", profile['name']),
@@ -2493,22 +2620,28 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               _profileRow("Age", profile['age']),
               _profileRow("Blood Type", profile['bloodType']),
             ]),
-            _profileSection("Medical Information", Icons.medical_services, [
+            _profileSection(
+                "Medical Information", Icons.medical_services, [
               _profileRow("Allergies", profile['allergies']),
               _profileRow("Conditions", profile['conditions']),
               _profileRow("Medications", profile['medications']),
             ]),
-            _profileSection("Emergency Contacts", Icons.contact_phone, [
+            _profileSection(
+                "Emergency Contacts", Icons.contact_phone, [
               if ((profile['contact1Name'] ?? '').isNotEmpty) ...[
                 _profileRow("Contact 1", profile['contact1Name']),
-                _profileRow("Relationship", profile['contact1Rel']),
-                _callableRow(context, "Phone", profile['contact1Phone']),
+                _profileRow(
+                    "Relationship", profile['contact1Rel']),
+                _callableRow(
+                    context, "Phone", profile['contact1Phone']),
               ],
               if ((profile['contact2Name'] ?? '').isNotEmpty) ...[
                 const Divider(),
                 _profileRow("Contact 2", profile['contact2Name']),
-                _profileRow("Relationship", profile['contact2Rel']),
-                _callableRow(context, "Phone", profile['contact2Phone']),
+                _profileRow(
+                    "Relationship", profile['contact2Rel']),
+                _callableRow(
+                    context, "Phone", profile['contact2Phone']),
               ],
             ]),
             _profileSection("Addresses", Icons.home, [
@@ -2527,17 +2660,15 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Icon(icon, color: Colors.red, size: 18),
-            const SizedBox(width: 8),
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red)),
-          ],
-        ),
+        Row(children: [
+          Icon(icon, color: Colors.red, size: 18),
+          const SizedBox(width: 8),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red)),
+        ]),
         const SizedBox(height: 8),
         ...children,
       ],
@@ -2554,8 +2685,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         children: [
           SizedBox(
               width: 110,
-              child:
-                  Text(label, style: const TextStyle(color: Colors.grey))),
+              child: Text(label,
+                  style: const TextStyle(color: Colors.grey))),
           Expanded(
               child: Text(text, style: const TextStyle(fontSize: 15))),
         ],
@@ -2563,7 +2694,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 
-  Widget _callableRow(BuildContext context, String label, dynamic value) {
+  Widget _callableRow(
+      BuildContext context, String label, dynamic value) {
     final text = (value ?? '').toString().trim();
     if (text.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -2572,12 +2704,13 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         children: [
           SizedBox(
               width: 110,
-              child:
-                  Text(label, style: const TextStyle(color: Colors.grey))),
+              child: Text(label,
+                  style: const TextStyle(color: Colors.grey))),
           Expanded(
               child: Text(text, style: const TextStyle(fontSize: 15))),
           IconButton(
-            icon: const Icon(Icons.call, color: Colors.green, size: 22),
+            icon:
+                const Icon(Icons.call, color: Colors.green, size: 22),
             onPressed: () => launchUrl(Uri.parse('tel:$text')),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -2597,12 +2730,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         final data = doc.data() as Map<String, dynamic>;
         return LatLng(data['lat'], data['lng']);
       }).toList();
-      _mapCtrl.fitCamera(
-        CameraFit.coordinates(
-          coordinates: points,
-          padding: const EdgeInsets.all(80),
-        ),
-      );
+      _mapCtrl.fitCamera(CameraFit.coordinates(
+          coordinates: points, padding: const EdgeInsets.all(80)));
     }
   }
 
@@ -2628,7 +2757,26 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
 
           final currentIds = alerts.map((d) => d.id).toSet();
           final newIds = currentIds.difference(_knownAlertIds);
-          final isFirstLoad = _knownAlertIds.isEmpty && alerts.isNotEmpty;
+          final isFirstLoad =
+              _knownAlertIds.isEmpty && alerts.isNotEmpty;
+
+          // Start escalation for new alerts
+          for (final doc in alerts) {
+            final data = doc.data() as Map<String, dynamic>;
+            if (newIds.contains(doc.id) || isFirstLoad) {
+              SOSEscalationManager.startEscalation(doc.id, data);
+            } else {
+              // Update location data in escalation manager
+              SOSEscalationManager.updateAlertData(doc.id, data);
+            }
+          }
+
+          // Stop escalation for alerts no longer active
+          final removedIds =
+              SOSEscalationManager.trackedAlertIds.difference(currentIds);
+          for (final id in removedIds) {
+            SOSEscalationManager.stopEscalation(id);
+          }
 
           if (isFirstLoad) {
             if (_mapReady) _zoomToAlerts(alerts);
@@ -2674,19 +2822,22 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                         child: Column(
                           children: [
                             Icon(Icons.warning,
-                                color: isSelected ? Colors.orange : color,
+                                color: isSelected
+                                    ? Colors.orange
+                                    : color,
                                 size: isSelected ? 48 : 40),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 4, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.black87,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
+                                  color: Colors.black87,
+                                  borderRadius:
+                                      BorderRadius.circular(4)),
                               child: Text(
                                 data['userName'] ?? 'User',
                                 style: const TextStyle(
-                                    fontSize: 10, color: Colors.white),
+                                    fontSize: 10,
+                                    color: Colors.white),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -2738,10 +2889,15 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           ),
                           const SizedBox(width: 8),
                           GestureDetector(
-                            onTap: () => setState(() => _isMuted = !_isMuted),
+                            onTap: () => setState(
+                                () => _isMuted = !_isMuted),
                             child: Icon(
-                              _isMuted ? Icons.volume_off : Icons.volume_up,
-                              color: _isMuted ? Colors.orange : Colors.white,
+                              _isMuted
+                                  ? Icons.volume_off
+                                  : Icons.volume_up,
+                              color: _isMuted
+                                  ? Colors.orange
+                                  : Colors.white,
                               size: 22,
                             ),
                           ),
@@ -2767,18 +2923,22 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.warning, color: color, size: 28),
+                                Icon(Icons.warning,
+                                    color: color, size: 28),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    _selectedAlert!['userName'] ?? 'User',
+                                    _selectedAlert!['userName'] ??
+                                        'User',
                                     style: const TextStyle(
                                         fontSize: 20,
-                                        fontWeight: FontWeight.bold),
+                                        fontWeight:
+                                            FontWeight.bold),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -2791,18 +2951,21 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                             ),
                             Text(
                               "📍 ${_selectedAlert!['lat'].toStringAsFixed(5)}, ${_selectedAlert!['lng'].toStringAsFixed(5)}",
-                              style: const TextStyle(color: Colors.grey),
+                              style:
+                                  const TextStyle(color: Colors.grey),
                             ),
                             Text(
                               _lastSeen(_selectedAlert!['timestamp']),
-                              style: const TextStyle(color: Colors.grey),
+                              style:
+                                  const TextStyle(color: Colors.grey),
                             ),
                             const SizedBox(height: 12),
                             Row(
                               children: [
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.navigation),
+                                    icon:
+                                        const Icon(Icons.navigation),
                                     label: const Text("NAVIGATE"),
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.blue,
@@ -2815,7 +2978,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.check_circle),
+                                    icon:
+                                        const Icon(Icons.check_circle),
                                     label: const Text("RESOLVE"),
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.green,
@@ -2831,7 +2995,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                     icon: const Icon(Icons.person),
                                     label: const Text("PROFILE"),
                                     style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.orange[800],
+                                        backgroundColor:
+                                            Colors.orange[800],
                                         padding:
                                             const EdgeInsets.all(12)),
                                     onPressed: () {
@@ -2883,8 +3048,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                             const Spacer(),
                             IconButton(
                               icon: const Icon(Icons.close),
-                              onPressed: () =>
-                                  setState(() => _panelOpen = false),
+                              onPressed: () => setState(
+                                  () => _panelOpen = false),
                             ),
                           ],
                         ),
@@ -2915,8 +3080,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                         ? FontWeight.bold
                                         : FontWeight.normal),
                               ),
-                              subtitle:
-                                  Text(_lastSeen(data['timestamp'])),
+                              subtitle: Text(
+                                  _lastSeen(data['timestamp'])),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -2929,14 +3094,16 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                     },
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.check_circle,
+                                    icon: const Icon(
+                                        Icons.check_circle,
                                         color: Colors.green),
                                     onPressed: () =>
                                         _resolveAlert(doc.id),
                                   ),
                                 ],
                               ),
-                              onTap: () => _selectAlert(doc.id, data),
+                              onTap: () =>
+                                  _selectAlert(doc.id, data),
                             );
                           },
                         ),
