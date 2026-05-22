@@ -142,7 +142,16 @@ class SOSEscalationManager {
     final secondsSinceNotify = DateTime.now().difference(lastNotify).inSeconds;
 
     // Determine required interval based on SOS age
-    const int requiredIntervalSeconds = 300; // Once every 5 minutes
+    int requiredIntervalSeconds;
+    if (ageSeconds < 60) {
+      requiredIntervalSeconds = 10; // Every 10s in first minute
+    } else if (ageSeconds < 600) {
+      requiredIntervalSeconds = 60; // Every 60s from 1min to 10min
+    } else if (ageSeconds < 3600) {
+      requiredIntervalSeconds = 600; // Every 10min from 10min to 60min
+    } else {
+      requiredIntervalSeconds = 3600; // Every 60min after 60min
+    }
 
     if (secondsSinceNotify >= requiredIntervalSeconds) {
       _notify(alertId, data);
@@ -1046,7 +1055,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
   bool _loading = true;
-  double _radiusKm = 50.0;
 
   final _nameCtrl = TextEditingController();
   final _idCtrl = TextEditingController();
@@ -1074,13 +1082,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadProfile();
-    _loadRadius();
-  }
-
-  Future<void> _loadRadius() async {
-    final prefs = await SharedPreferences.getInstance();
-    final r = prefs.getDouble('response_radius_km') ?? 50.0;
-    if (mounted) setState(() => _radiusKm = r);
   }
 
   Future<void> _loadProfile() async {
@@ -1146,30 +1147,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'updatedAt': FieldValue.serverTimestamp(),
     });
     setState(() => _saving = false);
-    if (currentRole == 'officer') {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble('response_radius_km', _radiusKm);
-    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Profile saved successfully!")));
       Navigator.of(context).pop();
     }
-  }
-
-  Widget _quickRadius(String label, double value) {
-    final selected = value >= 9000 ? _radiusKm >= 9000 : (_radiusKm - value).abs() < 1;
-    return GestureDetector(
-      onTap: () => setState(() => _radiusKm = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? Colors.blue : Colors.grey[800],
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(label, style: TextStyle(color: selected ? Colors.white : Colors.grey, fontSize: 12, fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
-      ),
-    );
   }
 
   Widget _sectionHeader(String title, IconData icon, {String? subtitle}) {
@@ -1355,25 +1337,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       "Contact 2", _wa2NameCtrl, _wa2PhoneCtrl),
                   _waContactBlock(
                       "Contact 3", _wa3NameCtrl, _wa3PhoneCtrl),
-                  if (currentRole == 'officer') ...[
-                    Padding(
-                      padding: const EdgeInsets.only(top: 24, bottom: 8),
-                      child: Row(children: [
-                        const Icon(Icons.radar, color: Colors.blue, size: 20),
-                        const SizedBox(width: 8),
-                        const Text('Officer Settings', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue)),
-                      ]),
-                    ),
-                    const Text('Set your response radius - alerts outside this range are hidden.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    const SizedBox(height: 12),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      const Text('Response Radius', style: TextStyle(color: Colors.white70)),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(20)), child: Text(_radiusKm >= 9000 ? 'All areas' : '${_radiusKm.toStringAsFixed(0)} km', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    ]),
-                    Slider(value: _radiusKm >= 9000 ? 500 : _radiusKm, min: 10, max: 500, divisions: 49, activeColor: Colors.blue, onChanged: (v) => setState(() => _radiusKm = v)),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [_quickRadius('10 km', 10), _quickRadius('50 km', 50), _quickRadius('100 km', 100), _quickRadius('All', 9999)]),
-                    const SizedBox(height: 16),
-                  ],
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,

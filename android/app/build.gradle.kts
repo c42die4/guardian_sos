@@ -71,6 +71,11 @@ android {
             applicationId = "com.cyberwarriors.sos_security"
             resValue("string", "app_name", "SOS Security")
         }
+        create("highway_devils") {
+            dimension = "company"
+            applicationId = "com.highwaydevils.emergency"
+            resValue("string", "app_name", "Highway Devils")
+        }
     }
 }
 
