@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -16,10 +16,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // NOTIFICATIONS
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 final FlutterLocalNotificationsPlugin _notifications =
     FlutterLocalNotificationsPlugin();
 
@@ -63,21 +64,21 @@ Future<void> showAlertNotification(String name, String location,
       NotificationDetails(android: androidDetails);
   await _notifications.show(
     notificationId,
-    '🚨 SOS ALERT — $name',
-    '📍 $location',
+    'ðŸš¨ SOS ALERT â€” $name',
+    'ðŸ“ $location',
     details,
   );
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // ESCALATING NOTIFICATION MANAGER
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // This class manages escalating reminders for officers about unresolved SOS alerts.
 // Schedule:
-//   0 – 60s      → remind every 10s
-//   60s – 10min  → remind every 60s
-//   10min – 60min→ remind every 10min
-//   60min+       → remind every 60min
+//   0 â€“ 60s      â†’ remind every 10s
+//   60s â€“ 10min  â†’ remind every 60s
+//   10min â€“ 60minâ†’ remind every 10min
+//   60min+       â†’ remind every 60min
 class SOSEscalationManager {
   // Map of alertId -> timer for that alert
   static final Map<String, Timer> _timers = {};
@@ -105,7 +106,7 @@ class SOSEscalationManager {
     });
   }
 
-  /// Call this when an alert is resolved or cancelled — stops the reminders.
+  /// Call this when an alert is resolved or cancelled â€” stops the reminders.
   static void stopEscalation(String alertId) {
     _timers[alertId]?.cancel();
     _timers.remove(alertId);
@@ -142,7 +143,16 @@ class SOSEscalationManager {
     final secondsSinceNotify = DateTime.now().difference(lastNotify).inSeconds;
 
     // Determine required interval based on SOS age
-    const int requiredIntervalSeconds = 300; // Once every 5 minutes
+    int requiredIntervalSeconds;
+    if (ageSeconds < 60) {
+      requiredIntervalSeconds = 10; // Every 10s in first minute
+    } else if (ageSeconds < 600) {
+      requiredIntervalSeconds = 60; // Every 60s from 1min to 10min
+    } else if (ageSeconds < 3600) {
+      requiredIntervalSeconds = 600; // Every 10min from 10min to 60min
+    } else {
+      requiredIntervalSeconds = 3600; // Every 60min after 60min
+    }
 
     if (secondsSinceNotify >= requiredIntervalSeconds) {
       _notify(alertId, data);
@@ -173,7 +183,7 @@ class SOSEscalationManager {
     final notificationId = alertId.hashCode.abs() % 10000;
     await showAlertNotification(
       name,
-      '📍 $lat, $lng  •  Started $ageLabel',
+      'ðŸ“ $lat, $lng  â€¢  Started $ageLabel',
       notificationId: notificationId,
     );
   }
@@ -182,9 +192,9 @@ class SOSEscalationManager {
   static Set<String> get trackedAlertIds => _timers.keys.toSet();
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // FOREGROUND TASK HANDLER
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(LocationTaskHandler());
@@ -228,8 +238,8 @@ class LocationTaskHandler extends TaskHandler {
       });
 
       FlutterForegroundTask.updateService(
-        notificationTitle: '🚨 SOS Active',
-        notificationText: 'SOS Active — Sharing your location with officers',
+        notificationTitle: 'ðŸš¨ SOS Active',
+        notificationText: 'SOS Active â€” Sharing your location with officers',
       );
     } catch (e) {
       debugPrint('Location task error: $e');
@@ -246,9 +256,9 @@ class LocationTaskHandler extends TaskHandler {
   void onNotificationPressed() {}
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // FOREGROUND SERVICE HELPERS
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 void initForegroundTask() {
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
@@ -279,7 +289,7 @@ Future<void> startLocationService(String alertId, String companyId) async {
     await FlutterForegroundTask.restartService();
   } else {
     await FlutterForegroundTask.startService(
-      notificationTitle: '🚨 SOS Active',
+      notificationTitle: 'ðŸš¨ SOS Active',
       notificationText: 'Sharing your location with officers...',
       callback: startCallback,
     );
@@ -290,9 +300,9 @@ Future<void> stopLocationService() async {
   await FlutterForegroundTask.stopService();
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // COMPANY CONFIG MODEL
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class CompanyConfig {
   final String id;
   final String name;
@@ -350,9 +360,9 @@ class CompanyConfig {
 CompanyConfig? currentCompany;
 String currentRole = 'client';
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // HELPERS
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Future<String> getDeviceId() async {
   final prefs = await SharedPreferences.getInstance();
   String? id = prefs.getString('device_id');
@@ -383,6 +393,40 @@ Future<void> saveRole(String role) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString('device_role', role);
 }
+
+// â”€â”€ Radius helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const double kDefaultRadiusKm = 50.0;
+
+Future<double> getSavedRadius() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getDouble('response_radius_km') ?? kDefaultRadiusKm;
+}
+
+Future<void> saveRadius(double km) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setDouble('response_radius_km', km);
+  // Also persist to Firestore device record so admin can see it
+  try {
+    final deviceId = await getDeviceId();
+    FirebaseFirestore.instance
+        .collection('devices')
+        .doc(deviceId)
+        .update({'responseRadiusKm': km}).catchError((_) {});
+  } catch (_) {}
+}
+
+/// Haversine formula â€” returns distance in km between two GPS points
+double distanceKm(double lat1, double lng1, double lat2, double lng2) {
+  const r = 6371.0;
+  final dLat = _deg2rad(lat2 - lat1);
+  final dLng = _deg2rad(lng2 - lng1);
+  final a = sin(dLat / 2) * sin(dLat / 2) +
+      cos(_deg2rad(lat1)) * cos(_deg2rad(lat2)) *
+          sin(dLng / 2) * sin(dLng / 2);
+  return r * 2 * atan2(sqrt(a), sqrt(1 - a));
+}
+
+double _deg2rad(double deg) => deg * pi / 180;
 
 Future<void> saveCompanyData(CompanyConfig company) async {
   final prefs = await SharedPreferences.getInstance();
@@ -438,9 +482,9 @@ Future<void> sendWhatsAppAlert({
     cleaned = cleaned.replaceAll('+', '');
     final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
     final message = Uri.encodeComponent(
-        '🚨 EMERGENCY ALERT 🚨\n\n'
+        'ðŸš¨ EMERGENCY ALERT ðŸš¨\n\n'
         '$userName needs urgent help!\n\n'
-        '📍 Location: $mapsLink\n\n'
+        'ðŸ“ Location: $mapsLink\n\n'
         'Please respond immediately or call emergency services.');
     final url = 'whatsapp://send?phone=$cleaned&text=$message';
     final uri = Uri.parse(url);
@@ -453,9 +497,9 @@ Future<void> sendWhatsAppAlert({
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // CONNECTIVITY
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Future<bool> hasInternet() async {
   try {
     final socket = await Socket.connect('8.8.8.8', 53,
@@ -492,9 +536,9 @@ class SOSApp extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // APP ENTRY
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class AppEntry extends StatefulWidget {
   const AppEntry({super.key});
   @override
@@ -578,9 +622,9 @@ class _AppEntryState extends State<AppEntry> {
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // COMPANY REGISTRATION SCREEN
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class CompanyRegistrationScreen extends StatefulWidget {
   const CompanyRegistrationScreen({super.key});
   @override
@@ -771,9 +815,9 @@ class _CompanyRegistrationScreenState
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // TRIAL EXPIRED SCREEN
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class TrialExpiredScreen extends StatelessWidget {
   final CompanyConfig company;
   const TrialExpiredScreen({super.key, required this.company});
@@ -850,9 +894,9 @@ class TrialExpiredScreen extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SUBSCRIPTION SUSPENDED SCREEN
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class SubscriptionSuspendedScreen extends StatelessWidget {
   final CompanyConfig company;
   const SubscriptionSuspendedScreen({super.key, required this.company});
@@ -902,9 +946,9 @@ class SubscriptionSuspendedScreen extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // APP SHELL
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class AppShell extends StatefulWidget {
   final CompanyConfig company;
   const AppShell({super.key, required this.company});
@@ -915,12 +959,19 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   bool isOfficerMode = false;
   bool _checkingProfile = true;
+  double _radiusKm = kDefaultRadiusKm;
 
   @override
   void initState() {
     super.initState();
     _checkProfile();
     _requestPermissions();
+    _loadRadius();
+  }
+
+  Future<void> _loadRadius() async {
+    final r = await getSavedRadius();
+    if (mounted) setState(() => _radiusKm = r);
   }
 
   Future<void> _requestPermissions() async {
@@ -950,6 +1001,97 @@ class _AppShellState extends State<AppShell> {
           MaterialPageRoute(
               builder: (_) => const ProfileScreen(isFirstTime: true)));
     }
+  }
+
+  void _showRadiusDialog() {
+    double tempRadius = _radiusKm;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Row(
+            children: [
+              Icon(Icons.radar, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Response Radius', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'You will only receive alerts within ${tempRadius.toStringAsFixed(0)} km of your current location.',
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                '${tempRadius.toStringAsFixed(0)} km',
+                style: const TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue),
+              ),
+              Slider(
+                value: tempRadius,
+                min: 10,
+                max: 500,
+                divisions: 49,
+                activeColor: Colors.blue,
+                label: '${tempRadius.toStringAsFixed(0)} km',
+                onChanged: (v) => setDlg(() => tempRadius = v),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _radiusChip('10 km', 10, tempRadius, setDlg, (v) => tempRadius = v),
+                  _radiusChip('50 km', 50, tempRadius, setDlg, (v) => tempRadius = v),
+                  _radiusChip('100 km', 100, tempRadius, setDlg, (v) => tempRadius = v),
+                  _radiusChip('All', 9999, tempRadius, setDlg, (v) => tempRadius = v),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              onPressed: () async {
+                await saveRadius(tempRadius);
+                setState(() => _radiusKm = tempRadius);
+                if (mounted) Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _radiusChip(String label, double value, double current,
+      StateSetter setDlg, Function(double) onTap) {
+    final selected = (current - value).abs() < 1;
+    return GestureDetector(
+      onTap: () => setDlg(() => onTap(value)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? Colors.blue : Colors.grey[800],
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: selected ? Colors.white : Colors.grey,
+                fontSize: 12,
+                fontWeight:
+                    selected ? FontWeight.bold : FontWeight.normal)),
+      ),
+    );
   }
 
   @override
@@ -987,7 +1129,7 @@ class _AppShellState extends State<AppShell> {
               Flexible(
                 child: Text(
                   isOfficer && isOfficerMode
-                      ? "${widget.company.name} — OFFICER"
+                      ? "${widget.company.name} â€” OFFICER"
                       : widget.company.name,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 16),
@@ -1009,11 +1151,17 @@ class _AppShellState extends State<AppShell> {
                 },
               ),
             if (isOfficer) ...[
+              // Radius button â€” only show in officer mode
+              if (isOfficerMode)
+                IconButton(
+                  icon: const Icon(Icons.radar),
+                  tooltip: 'Response Radius',
+                  onPressed: () => _showRadiusDialog(),
+                ),
               Switch(
                   value: isOfficerMode,
                   activeThumbColor: Colors.blueAccent,
                   onChanged: (v) {
-                    // Stop all escalations when leaving officer mode
                     if (!v) SOSEscalationManager.stopAll();
                     setState(() => isOfficerMode = v);
                   }),
@@ -1025,16 +1173,16 @@ class _AppShellState extends State<AppShell> {
         body: _checkingProfile
             ? const Center(child: CircularProgressIndicator())
             : isOfficer && isOfficerMode
-                ? OfficerDashboard(company: widget.company)
+                ? OfficerDashboard(company: widget.company, responseRadiusKm: _radiusKm)
                 : SOSScreen(company: widget.company),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // PROFILE SCREEN
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class ProfileScreen extends StatefulWidget {
   final bool isFirstTime;
   const ProfileScreen({super.key, this.isFirstTime = false});
@@ -1046,7 +1194,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
   bool _loading = true;
-  double _radiusKm = 50.0;
 
   final _nameCtrl = TextEditingController();
   final _idCtrl = TextEditingController();
@@ -1074,13 +1221,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadProfile();
-    _loadRadius();
-  }
-
-  Future<void> _loadRadius() async {
-    final prefs = await SharedPreferences.getInstance();
-    final r = prefs.getDouble('response_radius_km') ?? 50.0;
-    if (mounted) setState(() => _radiusKm = r);
   }
 
   Future<void> _loadProfile() async {
@@ -1146,30 +1286,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'updatedAt': FieldValue.serverTimestamp(),
     });
     setState(() => _saving = false);
-    if (currentRole == 'officer') {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble('response_radius_km', _radiusKm);
-    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Profile saved successfully!")));
       Navigator.of(context).pop();
     }
-  }
-
-  Widget _quickRadius(String label, double value) {
-    final selected = value >= 9000 ? _radiusKm >= 9000 : (_radiusKm - value).abs() < 1;
-    return GestureDetector(
-      onTap: () => setState(() => _radiusKm = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? Colors.blue : Colors.grey[800],
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(label, style: TextStyle(color: selected ? Colors.white : Colors.grey, fontSize: 12, fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
-      ),
-    );
   }
 
   Widget _sectionHeader(String title, IconData icon, {String? subtitle}) {
@@ -1355,25 +1476,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       "Contact 2", _wa2NameCtrl, _wa2PhoneCtrl),
                   _waContactBlock(
                       "Contact 3", _wa3NameCtrl, _wa3PhoneCtrl),
-                  if (currentRole == 'officer') ...[
-                    Padding(
-                      padding: const EdgeInsets.only(top: 24, bottom: 8),
-                      child: Row(children: [
-                        const Icon(Icons.radar, color: Colors.blue, size: 20),
-                        const SizedBox(width: 8),
-                        const Text('Officer Settings', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue)),
-                      ]),
-                    ),
-                    const Text('Set your response radius - alerts outside this range are hidden.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    const SizedBox(height: 12),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      const Text('Response Radius', style: TextStyle(color: Colors.white70)),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(20)), child: Text(_radiusKm >= 9000 ? 'All areas' : '${_radiusKm.toStringAsFixed(0)} km', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    ]),
-                    Slider(value: _radiusKm >= 9000 ? 500 : _radiusKm, min: 10, max: 500, divisions: 49, activeColor: Colors.blue, onChanged: (v) => setState(() => _radiusKm = v)),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [_quickRadius('10 km', 10), _quickRadius('50 km', 50), _quickRadius('100 km', 100), _quickRadius('All', 9999)]),
-                    const SizedBox(height: 16),
-                  ],
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -1408,9 +1510,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SOS ACTIVE SCREEN
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class SOSActiveScreen extends StatefulWidget {
   final CompanyConfig company;
   final String alertId;
@@ -1637,7 +1739,7 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                                 fontSize: 13)),
                       ]),
                       const SizedBox(height: 6),
-                      ...contacts.map((c) => Text("• $c",
+                      ...contacts.map((c) => Text("â€¢ $c",
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 13))),
                     ],
@@ -1682,9 +1784,9 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SOS SCREEN
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class SOSScreen extends StatefulWidget {
   final CompanyConfig company;
   const SOSScreen({super.key, required this.company});
@@ -1707,6 +1809,16 @@ class _SOSScreenState extends State<SOSScreen>
   bool _hasInternet = true;
   Timer? _connectivityTimer;
 
+  // Crash detection
+  bool _crashDetectionEnabled = false;
+  StreamSubscription? _accelSubscription;
+  Timer? _crashCountdownTimer;
+  bool _crashCountdownActive = false;
+  int _crashCountdownSeconds = 30;
+  DateTime? _lastHighGEvent;
+  static const double _crashThresholdG = 12.0;
+  static const double _gravity = 9.8;
+
   @override
   void initState() {
     super.initState();
@@ -1723,6 +1835,78 @@ class _SOSScreenState extends State<SOSScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _loadProfile();
+  }
+
+  void _startCrashDetection() {
+    _accelSubscription?.cancel();
+    _accelSubscription = accelerometerEventStream(
+            samplingPeriod: SensorInterval.normalInterval)
+        .listen((AccelerometerEvent e) {
+      // Calculate total acceleration in G
+      final totalG =
+          (e.x * e.x + e.y * e.y + e.z * e.z) / (_gravity * _gravity);
+      final gForce = totalG.abs();
+      if (gForce >= _crashThresholdG) {
+        final now = DateTime.now();
+        // Require sustained reading — ignore if last high-G was < 500ms ago
+        if (_lastHighGEvent != null &&
+            now.difference(_lastHighGEvent!).inMilliseconds < 500) {
+          if (!_crashCountdownActive && !_sosActive && mounted) {
+            _triggerCrashCountdown();
+          }
+        }
+        _lastHighGEvent = now;
+      }
+    });
+  }
+
+  void _stopCrashDetection() {
+    _accelSubscription?.cancel();
+    _accelSubscription = null;
+    _crashCountdownTimer?.cancel();
+    if (mounted) {
+      setState(() {
+        _crashCountdownActive = false;
+        _crashCountdownSeconds = 30;
+      });
+    }
+  }
+
+  void _triggerCrashCountdown() {
+    if (_crashCountdownActive || _sosActive) return;
+    Vibration.vibrate(pattern: [0, 500, 200, 500]);
+    setState(() {
+      _crashCountdownActive = true;
+      _crashCountdownSeconds = 30;
+    });
+    _crashCountdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() => _crashCountdownSeconds--);
+      // Vibrate every 5 seconds
+      if (_crashCountdownSeconds % 5 == 0) {
+        Vibration.vibrate(duration: 300);
+      }
+      if (_crashCountdownSeconds <= 0) {
+        t.cancel();
+        setState(() => _crashCountdownActive = false);
+        // Auto-fire SOS
+        _triggerSOS();
+      }
+    });
+  }
+
+  void _cancelCrashCountdown() {
+    _crashCountdownTimer?.cancel();
+    Vibration.vibrate(duration: 200);
+    if (mounted) {
+      setState(() {
+        _crashCountdownActive = false;
+        _crashCountdownSeconds = 30;
+      });
+    }
   }
 
   Future<void> _checkConnectivity() async {
@@ -1790,7 +1974,7 @@ class _SOSScreenState extends State<SOSScreen>
               Text('No Internet Connection'),
             ]),
             content: const Text(
-              'Cannot send SOS — your phone has no internet connection.\n\n'
+              'Cannot send SOS â€” your phone has no internet connection.\n\n'
               'Please enable WiFi or mobile data, then try again.\n\n'
               'You can still call emergency services directly.',
               style: TextStyle(fontSize: 14, height: 1.5),
@@ -1881,6 +2065,8 @@ class _SOSScreenState extends State<SOSScreen>
   @override
   void dispose() {
     _connectivityTimer?.cancel();
+    _accelSubscription?.cancel();
+    _crashCountdownTimer?.cancel();
     _controller.dispose();
     _nameController.dispose();
     super.dispose();
@@ -1906,6 +2092,68 @@ class _SOSScreenState extends State<SOSScreen>
 
     return Column(
       children: [
+        // Crash countdown overlay
+        if (_crashCountdownActive)
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: Colors.black.withOpacity(0.92),
+            child: SafeArea(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      color: Colors.orange, size: 80),
+                  const SizedBox(height: 20),
+                  const Text('CRASH DETECTED',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2)),
+                  const SizedBox(height: 12),
+                  const Text('Sending SOS in...',
+                      style: TextStyle(color: Colors.white70, fontSize: 16)),
+                  const SizedBox(height: 20),
+                  Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.orange, width: 6),
+                    ),
+                    child: Center(
+                      child: Text('$_crashCountdownSeconds',
+                          style: const TextStyle(
+                              color: Colors.orange,
+                              fontSize: 72,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  GestureDetector(
+                    onTap: _cancelCrashCountdown,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 40, vertical: 18),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(40),
+                      ),
+                      child: const Text("I'M OK — CANCEL",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Tap to cancel if you are not injured',
+                      style: TextStyle(color: Colors.grey, fontSize: 13)),
+                ],
+              ),
+            ),
+          ),
         if (!_hasInternet)
           Container(
             width: double.infinity,
@@ -1917,7 +2165,7 @@ class _SOSScreenState extends State<SOSScreen>
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '⚠️ No internet — SOS will not work. Enable WiFi or mobile data.',
+                  'âš ï¸ No internet â€” SOS will not work. Enable WiFi or mobile data.',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -1940,7 +2188,7 @@ class _SOSScreenState extends State<SOSScreen>
                       labelText: "Your Name",
                       border: const OutlineInputBorder(),
                       helperText: _nameController.text.isEmpty
-                          ? "⚠️ Please enter your name before sending SOS"
+                          ? "âš ï¸ Please enter your name before sending SOS"
                           : "Also editable in Profile",
                     ),
                     onChanged: (val) async {
@@ -1995,6 +2243,75 @@ class _SOSScreenState extends State<SOSScreen>
                         color: _isHolding ? color : Colors.grey,
                         fontSize: 16),
                   ),
+                  const SizedBox(height: 30),
+                  // Crash Detection toggle
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                          color: _crashDetectionEnabled
+                              ? Colors.orange.withOpacity(0.6)
+                              : Colors.grey.withOpacity(0.3)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(children: [
+                          Icon(Icons.two_wheeler,
+                              color: _crashDetectionEnabled
+                                  ? Colors.orange
+                                  : Colors.grey,
+                              size: 22),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Crash Detection',
+                                  style: TextStyle(
+                                      color: _crashDetectionEnabled
+                                          ? Colors.white
+                                          : Colors.grey,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14)),
+                              Text(
+                                  _crashDetectionEnabled
+                                      ? 'Active — watching for impact'
+                                      : 'Turn on when riding',
+                                  style: const TextStyle(
+                                      color: Colors.grey, fontSize: 11)),
+                            ],
+                          ),
+                        ]),
+                        Switch(
+                          value: _crashDetectionEnabled,
+                          activeColor: Colors.orange,
+                          onChanged: (v) {
+                            setState(() => _crashDetectionEnabled = v);
+                            if (v) {
+                              _startCrashDetection();
+                            } else {
+                              _stopCrashDetection();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Hidden test button — long press the toggle container label
+                  const SizedBox(height: 8),
+                  if (_crashDetectionEnabled)
+                    GestureDetector(
+                      onLongPress: () {
+                        // Long press for 2 seconds to trigger test
+                        _triggerCrashCountdown();
+                      },
+                      child: const Text(
+                        'Hold here 2 seconds to test',
+                        style: TextStyle(color: Colors.grey, fontSize: 11),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -2005,9 +2322,9 @@ class _SOSScreenState extends State<SOSScreen>
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // HUD SCREEN
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class HUDScreen extends StatefulWidget {
   final double targetLat;
   final double targetLng;
@@ -2368,8 +2685,8 @@ class _HUDScreenState extends State<HUDScreen>
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
                 _hudMode
-                    ? 'HUD MODE — Place phone on dashboard'
-                    : 'NORMAL MODE — Tap 👁 to flip for windscreen',
+                    ? 'HUD MODE â€” Place phone on dashboard'
+                    : 'NORMAL MODE â€” Tap ðŸ‘ to flip for windscreen',
                 style: const TextStyle(
                     color: Colors.white24,
                     fontSize: 11,
@@ -2397,12 +2714,17 @@ class _HUDScreenState extends State<HUDScreen>
   }
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // OFFICER DASHBOARD
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class OfficerDashboard extends StatefulWidget {
   final CompanyConfig company;
-  const OfficerDashboard({super.key, required this.company});
+  final double responseRadiusKm;
+  const OfficerDashboard({
+    super.key,
+    required this.company,
+    this.responseRadiusKm = 9999,
+  });
   @override
   State<OfficerDashboard> createState() => _OfficerDashboardState();
 }
@@ -2415,6 +2737,38 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   Map<String, dynamic>? _selectedAlert;
   String? _selectedAlertId;
   bool _panelOpen = false;
+  Position? _officerPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    _getOfficerPosition();
+  }
+
+  Future<void> _getOfficerPosition() async {
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.medium);
+      if (mounted) setState(() => _officerPosition = pos);
+    } catch (_) {}
+  }
+
+  /// Returns true if the alert is within the officer's response radius.
+  /// If officer position unknown or radius is very large, show all alerts.
+  bool _withinRadius(Map<String, dynamic> data) {
+    if (_officerPosition == null) return true;
+    final radius = widget.responseRadiusKm;
+    if (radius >= 9000) return true; // "All" option
+    final alertLat = (data['lat'] as num?)?.toDouble();
+    final alertLng = (data['lng'] as num?)?.toDouble();
+    if (alertLat == null || alertLng == null) return true;
+    final dist = distanceKm(
+        _officerPosition!.latitude,
+        _officerPosition!.longitude,
+        alertLat,
+        alertLng);
+    return dist <= radius;
+  }
 
   @override
   void dispose() {
@@ -2469,7 +2823,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.map),
-                label: const Text('Google Maps — Normal'),
+                label: const Text('Google Maps â€” Normal'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     padding: const EdgeInsets.all(14)),
@@ -2481,7 +2835,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.remove_red_eye),
-                label: const Text('Google Maps — HUD Mode'),
+                label: const Text('Google Maps â€” HUD Mode'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     padding: const EdgeInsets.all(14)),
@@ -2528,7 +2882,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                     style:
                         TextStyle(color: Colors.white70, fontSize: 13)),
                 SizedBox(height: 12),
-                Text('1. Tap the ⋮ menu (top right)',
+                Text('1. Tap the â‹® menu (top right)',
                     style: TextStyle(color: Colors.white, fontSize: 14)),
                 SizedBox(height: 6),
                 Text('2. Tap "HUD mode"',
@@ -2557,9 +2911,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     }
   }
 
-  // ─────────────────────────────────────────────
-  // RESOLVE ALERT — logs officer name + timestamp
-  // ─────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // RESOLVE ALERT â€” logs officer name + timestamp
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _resolveAlert(String id) async {
     try {
       // Get officer's device ID and look up their profile name
@@ -2596,7 +2950,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Alert resolved by $officerName'),
+            content: Text('âœ… Alert resolved by $officerName'),
             backgroundColor: Colors.green[800],
           ),
         );
@@ -2787,7 +3141,12 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final alerts = snapshot.data!.docs;
+        // Filter by response radius
+        final allAlerts = snapshot.data!.docs;
+        final alerts = allAlerts.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return _withinRadius(data);
+        }).toList();
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -2887,14 +3246,57 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               ],
             ),
             if (alerts.isEmpty)
-              const Center(
+              Center(
                 child: Card(
                   color: Colors.black54,
                   child: Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: Text("No active alerts",
-                        style: TextStyle(
-                            fontSize: 18, color: Colors.white)),
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text("No active alerts",
+                            style: TextStyle(
+                                fontSize: 18, color: Colors.white)),
+                        if (widget.responseRadiusKm < 9000)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              "ðŸ“¡ Showing alerts within ${widget.responseRadiusKm.toStringAsFixed(0)} km",
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.grey),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            // Radius indicator badge
+            if (widget.responseRadiusKm < 9000)
+              Positioned(
+                bottom: 20,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.radar,
+                          color: Colors.white, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${widget.responseRadiusKm.toStringAsFixed(0)} km radius',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -2917,7 +3319,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
-                              "🚨 ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''} — Tap to view list",
+                              "ðŸš¨ ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''} â€” Tap to view list",
                               style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold),
@@ -2987,7 +3389,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                               ],
                             ),
                             Text(
-                              "📍 ${_selectedAlert!['lat'].toStringAsFixed(5)}, ${_selectedAlert!['lng'].toStringAsFixed(5)}",
+                              "ðŸ“ ${_selectedAlert!['lat'].toStringAsFixed(5)}, ${_selectedAlert!['lng'].toStringAsFixed(5)}",
                               style:
                                   const TextStyle(color: Colors.grey),
                             ),
