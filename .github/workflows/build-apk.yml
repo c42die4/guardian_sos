@@ -59,16 +59,6 @@ jobs:
           sed -i 's/gradle-[0-9.]*-all/gradle-8.11.1-all/g' android/gradle/wrapper/gradle-wrapper.properties
           cat android/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Configure Gradle
-        working-directory: app-repo
-        run: |
-          mkdir -p ~/.gradle
-          cat > ~/.gradle/gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
-          android.useAndroidX=true
-          android.enableJetifier=true
-          EOF
-
       - name: Get Flutter dependencies
         working-directory: app-repo
         run: flutter pub get
