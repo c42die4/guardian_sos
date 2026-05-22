@@ -63,7 +63,6 @@ jobs:
         run: |
           mkdir -p ~/.gradle
           cat > ~/.gradle/gradle.properties << 'EOF'
-          org.gradle.java.home=$JAVA_HOME
           org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
           android.useAndroidX=true
           android.enableJetifier=true
@@ -117,3 +116,4 @@ jobs:
           echo "## ✅ Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "**Flavor:** ${FLAVOR}" >> $GITHUB_STEP_SUMMARY
           echo "**Download:** https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk" >> $GITHUB_STEP_SUMMARY
+
