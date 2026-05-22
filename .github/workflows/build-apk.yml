@@ -1,5 +1,4 @@
-# v18
-# v17 - Fix Flutter 3.41.5 Kotlin DSL compatibility
+# v19 - Clean rewrite with Flutter 3.32.0
 name: Build Custom APK
 on:
   workflow_dispatch:
@@ -54,21 +53,6 @@ jobs:
           cat android/local.properties
 
       - name: Fix Gradle wrapper version
-      - name: Add Gradle init script for plugin resolution
-        working-directory: app-repo
-        run: |
-          mkdir -p ~/.gradle/init.d
-          cat > ~/.gradle/init.d/plugin-repos.gradle << 'EOF'
-          settingsEvaluated { settings ->
-            settings.pluginManagement {
-              repositories {
-                gradlePluginPortal()
-                google()
-                mavenCentral()
-              }
-            }
-          }
-          EOF
         working-directory: app-repo
         run: |
           sed -i 's/gradle-[0-9.]*-all/gradle-8.11.1-all/g' android/gradle/wrapper/gradle-wrapper.properties
@@ -107,7 +91,7 @@ jobs:
           git add downloads/${FLAVOR}.apk
           git commit -m "Update APK for ${FLAVOR}" || echo "No changes to commit"
           git push
-          echo "✅ Done: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk"
+          echo "Done: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk"
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
@@ -119,8 +103,6 @@ jobs:
       - name: Summary
         run: |
           FLAVOR="${{ github.event.inputs.flavor }}"
-          echo "## ✅ Build Complete" >> $GITHUB_STEP_SUMMARY
-          echo "**Flavor:** ${FLAVOR}" >> $GITHUB_STEP_SUMMARY
-          echo "**Download:** https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk" >> $GITHUB_STEP_SUMMARY
-
-
+          echo "## Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "Flavor: ${FLAVOR}" >> $GITHUB_STEP_SUMMARY
+          echo "Download: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk" >> $GITHUB_STEP_SUMMARY
