@@ -54,6 +54,21 @@ jobs:
           cat android/local.properties
 
       - name: Fix Gradle wrapper version
+      - name: Add Gradle init script for plugin resolution
+        working-directory: app-repo
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/plugin-repos.gradle << 'EOF'
+          settingsEvaluated { settings ->
+            settings.pluginManagement {
+              repositories {
+                gradlePluginPortal()
+                google()
+                mavenCentral()
+              }
+            }
+          }
+          EOF
         working-directory: app-repo
         run: |
           sed -i 's/gradle-[0-9.]*-all/gradle-8.11.1-all/g' android/gradle/wrapper/gradle-wrapper.properties
