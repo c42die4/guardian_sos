@@ -58,7 +58,7 @@ jobs:
           sed -i 's/gradle-[0-9.]*-all/gradle-8.11.1-all/g' android/gradle/wrapper/gradle-wrapper.properties
           cat android/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Get Flutter dependencies
+
         working-directory: app-repo
         run: flutter pub get
 
@@ -106,3 +106,4 @@ jobs:
           echo "## Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "Flavor: ${FLAVOR}" >> $GITHUB_STEP_SUMMARY
           echo "Download: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk" >> $GITHUB_STEP_SUMMARY
+

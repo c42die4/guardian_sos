@@ -1838,26 +1838,8 @@ class _SOSScreenState extends State<SOSScreen>
   }
 
   void _startCrashDetection() {
-    _accelSubscription?.cancel();
-    _accelSubscription = accelerometerEventStream(
-            samplingPeriod: SensorInterval.normalInterval)
-        .listen((AccelerometerEvent e) {
-      // Calculate total acceleration in G
-      final totalG =
-          (e.x * e.x + e.y * e.y + e.z * e.z) / (_gravity * _gravity);
-      final gForce = totalG.abs();
-      if (gForce >= _crashThresholdG) {
-        final now = DateTime.now();
-        // Require sustained reading — ignore if last high-G was < 500ms ago
-        if (_lastHighGEvent != null &&
-            now.difference(_lastHighGEvent!).inMilliseconds < 500) {
-          if (!_crashCountdownActive && !_sosActive && mounted) {
-            _triggerCrashCountdown();
-          }
-        }
-        _lastHighGEvent = now;
-      }
-    });
+    // sensors_plus removed - crash detection disabled
+    debugPrint('Crash detection not available');
   }
 
   void _stopCrashDetection() {
@@ -1884,6 +1866,8 @@ class _SOSScreenState extends State<SOSScreen>
         t.cancel();
         return;
       }
+      if (!mounted) { t.cancel(); return; }
+      if (!mounted) { t.cancel(); return; }
       setState(() => _crashCountdownSeconds--);
       // Vibrate every 5 seconds
       if (_crashCountdownSeconds % 5 == 0) {
@@ -2094,14 +2078,13 @@ class _SOSScreenState extends State<SOSScreen>
       children: [
         // Crash countdown overlay
         if (_crashCountdownActive)
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: Colors.black.withOpacity(0.92),
-            child: SafeArea(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+          Positioned.fill(
+            child: Material(
+              color: Colors.black.withOpacity(0.92),
+              child: SafeArea(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                   const Icon(Icons.warning_amber_rounded,
                       color: Colors.orange, size: 80),
                   const SizedBox(height: 20),
@@ -2151,6 +2134,7 @@ class _SOSScreenState extends State<SOSScreen>
                   const Text('Tap to cancel if you are not injured',
                       style: TextStyle(color: Colors.grey, fontSize: 13)),
                 ],
+                ),
               ),
             ),
           ),
@@ -3557,3 +3541,4 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 }
+
