@@ -1,5 +1,7 @@
-# v19 - Clean rewrite with Flutter 3.32.0
+﻿# v16
+# Build workflow v16 - fix large file upload
 name: Build Custom APK
+
 on:
   workflow_dispatch:
     inputs:
@@ -12,10 +14,12 @@ on:
           - default
           - sos_security
           - highway_devils
+
 jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout guardian-sos-signup repo
         uses: actions/checkout@v4
@@ -29,10 +33,10 @@ jobs:
         with:
           path: app-repo
 
-      - name: Set up Java 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: 'zulu'
           java-version: '17'
 
       - name: Set up Flutter
@@ -58,7 +62,7 @@ jobs:
           sed -i 's/gradle-[0-9.]*-all/gradle-8.11.1-all/g' android/gradle/wrapper/gradle-wrapper.properties
           cat android/gradle/wrapper/gradle-wrapper.properties
 
-
+      - name: Get Flutter dependencies
         working-directory: app-repo
         run: flutter pub get
 
@@ -91,7 +95,7 @@ jobs:
           git add downloads/${FLAVOR}.apk
           git commit -m "Update APK for ${FLAVOR}" || echo "No changes to commit"
           git push
-          echo "Done: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk"
+          echo "Γ£à Done: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk"
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
@@ -103,7 +107,7 @@ jobs:
       - name: Summary
         run: |
           FLAVOR="${{ github.event.inputs.flavor }}"
-          echo "## Build Complete" >> $GITHUB_STEP_SUMMARY
-          echo "Flavor: ${FLAVOR}" >> $GITHUB_STEP_SUMMARY
-          echo "Download: https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk" >> $GITHUB_STEP_SUMMARY
+          echo "## Γ£à Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Flavor:** ${FLAVOR}" >> $GITHUB_STEP_SUMMARY
+          echo "**Download:** https://c42die4.github.io/guardian-sos-signup/downloads/${FLAVOR}.apk" >> $GITHUB_STEP_SUMMARY
 
