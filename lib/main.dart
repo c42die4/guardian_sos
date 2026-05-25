@@ -75,10 +75,10 @@ Future<void> showAlertNotification(String name, String location,
 // ─────────────────────────────────────────────────────────────────
 // This class manages escalating reminders for officers about unresolved SOS alerts.
 // Schedule:
-//   0 —œ 60s      → â€™ remind every 10s
-//   60s —œ 10min  → â€™ remind every 60s
-//   10min —œ 60min→ â€™ remind every 10min
-//   60min+       → â€™ remind every 60min
+//   0 —œ 60s      → ’ remind every 10s
+//   60s —œ 10min  → ’ remind every 60s
+//   10min —œ 60min→ ’ remind every 10min
+//   60min+       → ’ remind every 60min
 class SOSEscalationManager {
   // Map of alertId -> timer for that alert
   static final Map<String, Timer> _timers = {};
@@ -2036,6 +2036,11 @@ class _SOSScreenState extends State<SOSScreen>
 
   void _onSOSCancelled() {
     setState(() => _sosActive = false);
+    if (_crashDetectionEnabled) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && _crashDetectionEnabled) _startCrashDetection();
+      });
+    }
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text("SOS cancelled.")));
   }
@@ -2085,70 +2090,10 @@ class _SOSScreenState extends State<SOSScreen>
     final indicatorSize = keyboardOpen ? 185.0 : 250.0;
     final color = widget.company.primaryColor;
 
-    return Column(
+    return Stack(
       children: [
-        // Crash countdown overlay
-        if (_crashCountdownActive)
-          Positioned.fill(
-            child: Material(
-              color: Colors.black.withOpacity(0.92),
-              child: SafeArea(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: Colors.orange, size: 80),
-                  const SizedBox(height: 20),
-                  const Text('CRASH DETECTED',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2)),
-                  const SizedBox(height: 12),
-                  const Text('Sending SOS in... tap CANCEL if you are OK',
-                      style: TextStyle(color: Colors.white70, fontSize: 16)),
-                  const SizedBox(height: 20),
-                  Container(
-                    width: 140,
-                    height: 140,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.orange, width: 6),
-                    ),
-                    child: Center(
-                      child: Text('$_crashCountdownSeconds',
-                          style: const TextStyle(
-                              color: Colors.orange,
-                              fontSize: 72,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  GestureDetector(
-                    onTap: _cancelCrashCountdown,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 40, vertical: 18),
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        borderRadius: BorderRadius.circular(40),
-                      ),
-                      child: const Text("I'M OK â€” CANCEL",
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Tap to cancel if you are not injured',
-                      style: TextStyle(color: Colors.grey, fontSize: 13)),
-                ],
-                ),
-              ),
-            ),
-          ),
+        Column(
+          children: [
         if (!_hasInternet)
           Container(
             width: double.infinity,
@@ -2272,7 +2217,7 @@ class _SOSScreenState extends State<SOSScreen>
                                       fontSize: 14)),
                               Text(
                                   _crashDetectionEnabled
-                                      ? 'Active â€” watching for impact'
+                                      ? 'Active — watching for impact'
                                       : 'Turn on when riding',
                                   style: const TextStyle(
                                       color: Colors.grey, fontSize: 11)),
@@ -2294,7 +2239,7 @@ class _SOSScreenState extends State<SOSScreen>
                       ],
                     ),
                   ),
-                  // Hidden test button â€” long press the toggle container label
+                  // Hidden test button — long press the toggle container label
                   const SizedBox(height: 8),
                   if (_crashDetectionEnabled)
                     GestureDetector(
@@ -2312,11 +2257,74 @@ class _SOSScreenState extends State<SOSScreen>
             ),
           ),
         ),
+          ],
+        ),
+        // Crash countdown overlay
+        if (_crashCountdownActive)
+          Positioned.fill(
+            child: Material(
+              color: Colors.black.withOpacity(0.92),
+              child: SafeArea(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      color: Colors.orange, size: 80),
+                  const SizedBox(height: 20),
+                  const Text('CRASH DETECTED',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2)),
+                  const SizedBox(height: 12),
+                  const Text('Sending SOS in... tap CANCEL if you are OK',
+                      style: TextStyle(color: Colors.white70, fontSize: 16)),
+                  const SizedBox(height: 20),
+                  Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.orange, width: 6),
+                    ),
+                    child: Center(
+                      child: Text('$_crashCountdownSeconds',
+                          style: const TextStyle(
+                              color: Colors.orange,
+                              fontSize: 72,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  GestureDetector(
+                    onTap: _cancelCrashCountdown,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 40, vertical: 18),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(40),
+                      ),
+                      child: const Text("I'M OK — CANCEL",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Tap to cancel if you are not injured',
+                      style: TextStyle(color: Colors.grey, fontSize: 13)),
+                ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
 }
-
 // ─────────────────────────────────────────────────────────────────
 // HUD SCREEN
 // ─────────────────────────────────────────────────────────────────
@@ -3552,6 +3560,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 }
+
 
 
 
