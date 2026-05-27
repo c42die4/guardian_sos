@@ -219,6 +219,24 @@ class LocationTaskHandler extends TaskHandler {
   void onRepeatEvent(DateTime timestamp) async {
     if (_alertId == null) return;
     try {
+      // Check if alert is still active — stop service if resolved or cancelled
+      final alertSnap = await FirebaseFirestore.instance
+          .collection('alerts')
+          .doc(_alertId)
+          .get();
+      if (alertSnap.exists) {
+        final status = alertSnap.data()?['status'] as String?;
+        if (status == 'RESOLVED' || status == 'CANCELLED') {
+          debugPrint('Alert no longer active ($status) — stopping foreground service');
+          await FlutterForegroundTask.stopService();
+          return;
+        }
+      } else {
+        // Alert document doesn't exist — stop service
+        await FlutterForegroundTask.stopService();
+        return;
+      }
+
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) return;
       LocationPermission permission = await Geolocator.checkPermission();
@@ -3560,6 +3578,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 }
+
 
 
 
