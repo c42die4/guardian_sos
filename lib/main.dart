@@ -24,12 +24,43 @@ import 'package:sensors_plus/sensors_plus.dart';
 final FlutterLocalNotificationsPlugin _notifications =
     FlutterLocalNotificationsPlugin();
 
+// Track snoozed alerts (alertId -> snooze until time)
+final Map<String, DateTime> _snoozedAlerts = {};
+
+@pragma('vm:entry-point')
+void _onBackgroundNotificationResponse(NotificationResponse response) {
+  _handleNotificationAction(response.actionId, response.payload);
+}
+
+void _onNotificationResponse(NotificationResponse response) {
+  _handleNotificationAction(response.actionId, response.payload);
+}
+
+void _handleNotificationAction(String? actionId, String? alertId) {
+  if (actionId == null || alertId == null) return;
+  if (actionId == 'responding') {
+    // Mark officer as responding in Firebase
+    FirebaseFirestore.instance.collection('alerts').doc(alertId).update({
+      'respondingOfficer': 'responding',
+      'respondingAt': FieldValue.serverTimestamp(),
+    }).catchError((_) {});
+    SOSEscalationManager.stopEscalation(alertId);
+  } else if (actionId == 'remind_10') {
+    // Snooze for 10 minutes — stop escalation and restart after delay
+    SOSEscalationManager.snoozeEscalation(alertId, const Duration(minutes: 10));
+  }
+}
+
 Future<void> initNotifications() async {
   const AndroidInitializationSettings androidSettings =
       AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings settings =
-      InitializationSettings(android: androidSettings);
-  await _notifications.initialize(settings);
+  const InitializationSettings settings = InitializationSettings(
+      android: androidSettings);
+  await _notifications.initialize(
+    settings,
+    onDidReceiveNotificationResponse: _onNotificationResponse,
+    onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationResponse,
+  );
 
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
     'sos_alerts',
@@ -47,7 +78,22 @@ Future<void> initNotifications() async {
 }
 
 Future<void> showAlertNotification(String name, String location,
-    {int notificationId = 0}) async {
+    {int notificationId = 0, String? alertId}) async {
+  final List<AndroidNotificationAction> actions = [
+    const AndroidNotificationAction(
+      'responding',
+      '🏍️ RESPONDING',
+      showsUserInterface: true,
+      cancelNotification: true,
+    ),
+    const AndroidNotificationAction(
+      'remind_10',
+      '⏰ REMIND IN 10 MIN',
+      showsUserInterface: false,
+      cancelNotification: true,
+    ),
+  ];
+
   final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
     'sos_alerts',
     'SOS Alerts',
@@ -59,6 +105,7 @@ Future<void> showAlertNotification(String name, String location,
     enableVibration: true,
     vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 500]),
     fullScreenIntent: true,
+    actions: actions,
   );
   final NotificationDetails details =
       NotificationDetails(android: androidDetails);
@@ -67,6 +114,7 @@ Future<void> showAlertNotification(String name, String location,
     '🚨 SOS ALERT — $name',
     '📍 $location',
     details,
+    payload: alertId,
   );
 }
 
@@ -185,7 +233,25 @@ class SOSEscalationManager {
       name,
       '📍 $lat, $lng  •  Started $ageLabel',
       notificationId: notificationId,
+      alertId: alertId,
     );
+  }
+
+  /// Snooze escalation for a given duration then restart
+  static void snoozeEscalation(String alertId, Duration duration) {
+    _timers[alertId]?.cancel();
+    _timers.remove(alertId);
+    // Restart after snooze duration
+    Timer(duration, () {
+      final data = _alertData[alertId];
+      if (data != null) {
+        _lastNotified[alertId] = DateTime.now();
+        _notify(alertId, data);
+        _timers[alertId] = Timer.periodic(const Duration(seconds: 1), (_) {
+          _checkAndNotify(alertId);
+        });
+      }
+    });
   }
 
   /// Returns list of currently tracked alert IDs
@@ -3578,6 +3644,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 }
+
 
 
 
