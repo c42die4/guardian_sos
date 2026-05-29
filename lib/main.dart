@@ -191,16 +191,7 @@ class SOSEscalationManager {
     final secondsSinceNotify = DateTime.now().difference(lastNotify).inSeconds;
 
     // Determine required interval based on SOS age
-    int requiredIntervalSeconds;
-    if (ageSeconds < 60) {
-      requiredIntervalSeconds = 10; // Every 10s in first minute
-    } else if (ageSeconds < 600) {
-      requiredIntervalSeconds = 60; // Every 60s from 1min to 10min
-    } else if (ageSeconds < 3600) {
-      requiredIntervalSeconds = 600; // Every 10min from 10min to 60min
-    } else {
-      requiredIntervalSeconds = 3600; // Every 60min after 60min
-    }
+    const int requiredIntervalSeconds = 300; // Once every 5 minutes
 
     if (secondsSinceNotify >= requiredIntervalSeconds) {
       _notify(alertId, data);
@@ -3644,6 +3635,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 }
+
 
 
 
