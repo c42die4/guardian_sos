@@ -1042,6 +1042,30 @@ class _AppShellState extends State<AppShell> {
     _checkProfile();
     _requestPermissions();
     _loadRadius();
+    _stopOrphanedService();
+  }
+
+  Future<void> _stopOrphanedService() async {
+    // Stop any foreground service that survived from a previous session
+    // without an active SOS — this prevents the phantom notification
+    try {
+      if (await FlutterForegroundTask.isRunningService) {
+        // Check if there is actually an active SOS for this device
+        final deviceId = await getDeviceId();
+        final activeAlerts = await FirebaseFirestore.instance
+            .collection('alerts')
+            .where('deviceId', isEqualTo: deviceId)
+            .where('status', isEqualTo: 'ACTIVE')
+            .get();
+        if (activeAlerts.docs.isEmpty) {
+          // No active SOS — stop the orphaned service
+          await FlutterForegroundTask.stopService();
+          debugPrint('Stopped orphaned foreground service on startup');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking orphaned service: $e');
+    }
   }
 
   Future<void> _loadRadius() async {
@@ -2111,6 +2135,8 @@ class _SOSScreenState extends State<SOSScreen>
 
   void _onSOSCancelled() {
     setState(() => _sosActive = false);
+    // Always stop service when SOS ends
+    stopLocationService();
     if (_crashDetectionEnabled) {
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted && _crashDetectionEnabled) _startCrashDetection();
@@ -2144,6 +2170,10 @@ class _SOSScreenState extends State<SOSScreen>
     _crashCountdownTimer?.cancel();
     _controller.dispose();
     _nameController.dispose();
+    // Stop foreground service if no active SOS when screen is disposed
+    if (!_sosActive) {
+      stopLocationService();
+    }
     super.dispose();
   }
 
@@ -3635,6 +3665,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 }
+
 
 
 
