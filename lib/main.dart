@@ -18,9 +18,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // NOTIFICATIONS
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 final FlutterLocalNotificationsPlugin _notifications =
     FlutterLocalNotificationsPlugin();
 
@@ -46,7 +46,7 @@ void _handleNotificationAction(String? actionId, String? alertId) {
     }).catchError((_) {});
     SOSEscalationManager.stopEscalation(alertId);
   } else if (actionId == 'remind_10') {
-    // Snooze for 10 minutes — stop escalation and restart after delay
+    // Snooze for 10 minutes â€” stop escalation and restart after delay
     SOSEscalationManager.snoozeEscalation(alertId, const Duration(minutes: 10));
   }
 }
@@ -82,13 +82,13 @@ Future<void> showAlertNotification(String name, String location,
   final List<AndroidNotificationAction> actions = [
     const AndroidNotificationAction(
       'responding',
-      '🏍️ RESPONDING',
+      'ðŸï¸ RESPONDING',
       showsUserInterface: true,
       cancelNotification: true,
     ),
     const AndroidNotificationAction(
       'remind_10',
-      '⏰ REMIND IN 10 MIN',
+      'â° REMIND IN 10 MIN',
       showsUserInterface: false,
       cancelNotification: true,
     ),
@@ -111,22 +111,22 @@ Future<void> showAlertNotification(String name, String location,
       NotificationDetails(android: androidDetails);
   await _notifications.show(
     notificationId,
-    '🚨 SOS ALERT — $name',
-    '📍 $location',
+    'ðŸš¨ SOS ALERT â€” $name',
+    'ðŸ“ $location',
     details,
     payload: alertId,
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // ESCALATING NOTIFICATION MANAGER
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // This class manages escalating reminders for officers about unresolved SOS alerts.
 // Schedule:
-//   0 —œ 60s      → ’ remind every 10s
-//   60s —œ 10min  → ’ remind every 60s
-//   10min —œ 60min→ ’ remind every 10min
-//   60min+       → ’ remind every 60min
+//   0 â€”Å“ 60s      â†’Â â€™ remind every 10s
+//   60s â€”Å“ 10min  â†’Â â€™ remind every 60s
+//   10min â€”Å“ 60minâ†’Â â€™ remind every 10min
+//   60min+       â†’Â â€™ remind every 60min
 class SOSEscalationManager {
   // Map of alertId -> timer for that alert
   static final Map<String, Timer> _timers = {};
@@ -154,7 +154,7 @@ class SOSEscalationManager {
     });
   }
 
-  /// Call this when an alert is resolved or cancelled — stops the reminders.
+  /// Call this when an alert is resolved or cancelled â€” stops the reminders.
   static void stopEscalation(String alertId) {
     _timers[alertId]?.cancel();
     _timers.remove(alertId);
@@ -222,7 +222,7 @@ class SOSEscalationManager {
     final notificationId = alertId.hashCode.abs() % 10000;
     await showAlertNotification(
       name,
-      '📍 $lat, $lng  •  Started $ageLabel',
+      'ðŸ“ $lat, $lng  â€¢  Started $ageLabel',
       notificationId: notificationId,
       alertId: alertId,
     );
@@ -249,9 +249,9 @@ class SOSEscalationManager {
   static Set<String> get trackedAlertIds => _timers.keys.toSet();
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // FOREGROUND TASK HANDLER
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(LocationTaskHandler());
@@ -276,7 +276,7 @@ class LocationTaskHandler extends TaskHandler {
   void onRepeatEvent(DateTime timestamp) async {
     if (_alertId == null) return;
     try {
-      // Check if alert is still active — stop service if resolved or cancelled
+      // Check if alert is still active â€” stop service if resolved or cancelled
       final alertSnap = await FirebaseFirestore.instance
           .collection('alerts')
           .doc(_alertId)
@@ -284,12 +284,12 @@ class LocationTaskHandler extends TaskHandler {
       if (alertSnap.exists) {
         final status = alertSnap.data()?['status'] as String?;
         if (status == 'RESOLVED' || status == 'CANCELLED') {
-          debugPrint('Alert no longer active ($status) — stopping foreground service');
+          debugPrint('Alert no longer active ($status) â€” stopping foreground service');
           await FlutterForegroundTask.stopService();
           return;
         }
       } else {
-        // Alert document doesn't exist — stop service
+        // Alert document doesn't exist â€” stop service
         await FlutterForegroundTask.stopService();
         return;
       }
@@ -313,8 +313,8 @@ class LocationTaskHandler extends TaskHandler {
       });
 
       FlutterForegroundTask.updateService(
-        notificationTitle: '🚨 SOS Active',
-        notificationText: 'SOS Active — Sharing your location with officers',
+        notificationTitle: 'ðŸš¨ SOS Active',
+        notificationText: 'SOS Active â€” Sharing your location with officers',
       );
     } catch (e) {
       debugPrint('Location task error: $e');
@@ -331,9 +331,9 @@ class LocationTaskHandler extends TaskHandler {
   void onNotificationPressed() {}
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // FOREGROUND SERVICE HELPERS
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 void initForegroundTask() {
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
@@ -364,7 +364,7 @@ Future<void> startLocationService(String alertId, String companyId) async {
     await FlutterForegroundTask.restartService();
   } else {
     await FlutterForegroundTask.startService(
-      notificationTitle: '🚨 SOS Active',
+      notificationTitle: 'ðŸš¨ SOS Active',
       notificationText: 'Sharing your location with officers...',
       callback: startCallback,
     );
@@ -375,9 +375,9 @@ Future<void> stopLocationService() async {
   await FlutterForegroundTask.stopService();
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // COMPANY CONFIG MODEL
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class CompanyConfig {
   final String id;
   final String name;
@@ -435,9 +435,9 @@ class CompanyConfig {
 CompanyConfig? currentCompany;
 String currentRole = 'client';
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // HELPERS
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Future<String> getDeviceId() async {
   final prefs = await SharedPreferences.getInstance();
   String? id = prefs.getString('device_id');
@@ -469,7 +469,7 @@ Future<void> saveRole(String role) async {
   await prefs.setString('device_role', role);
 }
 
-// ── Radius helpers ─────────────────────────────────────────────────
+// â”€â”€ Radius helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const double kDefaultRadiusKm = 50.0;
 
 Future<double> getSavedRadius() async {
@@ -490,7 +490,7 @@ Future<void> saveRadius(double km) async {
   } catch (_) {}
 }
 
-/// Haversine formula — returns distance in km between two GPS points
+/// Haversine formula â€” returns distance in km between two GPS points
 double distanceKm(double lat1, double lng1, double lat2, double lng2) {
   const r = 6371.0;
   final dLat = _deg2rad(lat2 - lat1);
@@ -538,11 +538,29 @@ Future<CompanyConfig?> getCompanyData(String companyId) async {
   );
 }
 
+// Normalize phone number to international format without + prefix
+// Accepts: 0821234567, 082 123 4567, +27821234567, 27821234567
+// Country code dropdown value should be like "27" for SA, "44" for UK etc.
+String normalizePhone(String phone, {String countryCode = '27'}) {
+  // Remove all spaces, dashes, brackets
+  String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)\.]'), '');
+  // Remove leading +
+  if (cleaned.startsWith('+')) cleaned = cleaned.substring(1);
+  // If starts with 00 (international prefix) remove it
+  if (cleaned.startsWith('00')) cleaned = cleaned.substring(2);
+  // If starts with 0 (local format) replace with country code
+  if (cleaned.startsWith('0')) cleaned = countryCode + cleaned.substring(1);
+  // If doesn't start with country code, add it
+  if (!cleaned.startsWith(countryCode)) cleaned = countryCode + cleaned;
+  return cleaned;
+}
+
 Future<void> sendWhatsAppAlert({
   required String phone,
   required String userName,
   required double lat,
   required double lng,
+  String countryCode = '27',
 }) async {
   try {
     final whatsappCheck = Uri.parse('whatsapp://send');
@@ -550,16 +568,12 @@ Future<void> sendWhatsAppAlert({
       debugPrint('WhatsApp not installed, skipping alert');
       return;
     }
-    String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    if (cleaned.startsWith('0')) {
-      cleaned = '+27${cleaned.substring(1)}';
-    }
-    cleaned = cleaned.replaceAll('+', '');
+    String cleaned = normalizePhone(phone, countryCode: countryCode);
     final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
     final message = Uri.encodeComponent(
-        '🚨 EMERGENCY ALERT 🚨\n\n'
+        'ðŸš¨ EMERGENCY ALERT ðŸš¨\n\n'
         '$userName needs urgent help!\n\n'
-        '📍 Location: $mapsLink\n\n'
+        'ðŸ“ Location: $mapsLink\n\n'
         'Please respond immediately or call emergency services.');
     final url = 'whatsapp://send?phone=$cleaned&text=$message';
     final uri = Uri.parse(url);
@@ -572,9 +586,9 @@ Future<void> sendWhatsAppAlert({
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // CONNECTIVITY
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Future<bool> hasInternet() async {
   try {
     final socket = await Socket.connect('8.8.8.8', 53,
@@ -611,9 +625,9 @@ class SOSApp extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // APP ENTRY
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class AppEntry extends StatefulWidget {
   const AppEntry({super.key});
   @override
@@ -697,9 +711,9 @@ class _AppEntryState extends State<AppEntry> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // COMPANY REGISTRATION SCREEN
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class CompanyRegistrationScreen extends StatefulWidget {
   const CompanyRegistrationScreen({super.key});
   @override
@@ -890,9 +904,9 @@ class _CompanyRegistrationScreenState
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // TRIAL EXPIRED SCREEN
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class TrialExpiredScreen extends StatelessWidget {
   final CompanyConfig company;
   const TrialExpiredScreen({super.key, required this.company});
@@ -969,9 +983,9 @@ class TrialExpiredScreen extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SUBSCRIPTION SUSPENDED SCREEN
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class SubscriptionSuspendedScreen extends StatelessWidget {
   final CompanyConfig company;
   const SubscriptionSuspendedScreen({super.key, required this.company});
@@ -1021,9 +1035,9 @@ class SubscriptionSuspendedScreen extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // APP SHELL
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class AppShell extends StatefulWidget {
   final CompanyConfig company;
   const AppShell({super.key, required this.company});
@@ -1047,7 +1061,7 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _stopOrphanedService() async {
     // Stop any foreground service that survived from a previous session
-    // without an active SOS — this prevents the phantom notification
+    // without an active SOS â€” this prevents the phantom notification
     try {
       if (await FlutterForegroundTask.isRunningService) {
         // Check if there is actually an active SOS for this device
@@ -1058,7 +1072,7 @@ class _AppShellState extends State<AppShell> {
             .where('status', isEqualTo: 'ACTIVE')
             .get();
         if (activeAlerts.docs.isEmpty) {
-          // No active SOS — stop the orphaned service
+          // No active SOS â€” stop the orphaned service
           await FlutterForegroundTask.stopService();
           debugPrint('Stopped orphaned foreground service on startup');
         }
@@ -1228,7 +1242,7 @@ class _AppShellState extends State<AppShell> {
               Flexible(
                 child: Text(
                   isOfficer && isOfficerMode
-                      ? "${widget.company.name} — OFFICER"
+                      ? "${widget.company.name} â€” OFFICER"
                       : widget.company.name,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 16),
@@ -1250,7 +1264,7 @@ class _AppShellState extends State<AppShell> {
                 },
               ),
             if (isOfficer) ...[
-              // Radius button — only show in officer mode
+              // Radius button â€” only show in officer mode
               if (isOfficerMode)
                 IconButton(
                   icon: const Icon(Icons.radar),
@@ -1279,9 +1293,9 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // PROFILE SCREEN
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class ProfileScreen extends StatefulWidget {
   final bool isFirstTime;
   const ProfileScreen({super.key, this.isFirstTime = false});
@@ -1293,6 +1307,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
   bool _loading = true;
+  double _radiusKm = 50.0;
+  String _countryCode = '27'; // Default South Africa
 
   final _nameCtrl = TextEditingController();
   final _idCtrl = TextEditingController();
@@ -1351,6 +1367,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _wa2PhoneCtrl.text = d['wa2Phone'] ?? '';
       _wa3NameCtrl.text = d['wa3Name'] ?? '';
       _wa3PhoneCtrl.text = d['wa3Phone'] ?? '';
+      _countryCode = d['countryCode'] ?? '27';
     }
     setState(() => _loading = false);
   }
@@ -1375,6 +1392,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'contact2Rel': _contact2RelCtrl.text.trim(),
       'homeAddress': _homeAddressCtrl.text.trim(),
       'workAddress': _workAddressCtrl.text.trim(),
+      'countryCode': _countryCode,
       'wa1Name': _wa1NameCtrl.text.trim(),
       'wa1Phone': _wa1PhoneCtrl.text.trim(),
       'wa2Name': _wa2NameCtrl.text.trim(),
@@ -1471,9 +1489,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextFormField(
             controller: phoneCtrl,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-                labelText: "WhatsApp Number (e.g. 0821234567)",
-                border: OutlineInputBorder(),
+            decoration: InputDecoration(
+                labelText: "WhatsApp Number",
+                hintText: "e.g. 0821234567 or +27821234567",
+                helperText: "Enter in any format — we handle the rest",
+                helperStyle: const TextStyle(color: Colors.grey, fontSize: 11),
+                border: const OutlineInputBorder(),
                 isDense: true),
           ),
         ],
@@ -1569,6 +1590,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle:
                         "These contacts receive a WhatsApp message with your location when you trigger SOS.",
                   ),
+                  // Country code selector
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[700]!),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        dropdownColor: Colors.grey[900],
+                        value: _countryCode,
+                        hint: const Text('Select country', style: TextStyle(color: Colors.grey)),
+                        items: kCountryCodes.map((c) => DropdownMenuItem(
+                          value: c['code'],
+                          child: Text('${c['flag']} ${c['name']}',
+                              style: const TextStyle(color: Colors.white, fontSize: 14)),
+                        )).toList(),
+                        onChanged: (v) => setState(() => _countryCode = v ?? '27'),
+                      ),
+                    ),
+                  ),
                   _waContactBlock(
                       "Contact 1", _wa1NameCtrl, _wa1PhoneCtrl),
                   _waContactBlock(
@@ -1609,9 +1653,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SOS ACTIVE SCREEN
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class SOSActiveScreen extends StatefulWidget {
   final CompanyConfig company;
   final String alertId;
@@ -1838,7 +1882,7 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                                 fontSize: 13)),
                       ]),
                       const SizedBox(height: 6),
-                      ...contacts.map((c) => Text("• $c",
+                      ...contacts.map((c) => Text("â€¢ $c",
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 13))),
                     ],
@@ -1883,9 +1927,9 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SOS SCREEN
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class SOSScreen extends StatefulWidget {
   final CompanyConfig company;
   const SOSScreen({super.key, required this.company});
@@ -2034,6 +2078,7 @@ class _SOSScreenState extends State<SOSScreen>
   Future<void> _sendWhatsAppAlerts(
       Map<String, dynamic> profile, double lat, double lng) async {
     final userName = profile['name'] ?? 'User';
+    final countryCode = (profile['countryCode'] ?? '27').toString();
     final contacts = [
       {'name': profile['wa1Name'], 'phone': profile['wa1Phone']},
       {'name': profile['wa2Name'], 'phone': profile['wa2Phone']},
@@ -2047,6 +2092,7 @@ class _SOSScreenState extends State<SOSScreen>
           userName: userName,
           lat: lat,
           lng: lng,
+          countryCode: countryCode,
         );
       }
     }
@@ -2068,7 +2114,7 @@ class _SOSScreenState extends State<SOSScreen>
               Text('No Internet Connection'),
             ]),
             content: const Text(
-              'Cannot send SOS — your phone has no internet connection.\n\n'
+              'Cannot send SOS â€” your phone has no internet connection.\n\n'
               'Please enable WiFi or mobile data, then try again.\n\n'
               'You can still call emergency services directly.',
               style: TextStyle(fontSize: 14, height: 1.5),
@@ -2210,7 +2256,7 @@ class _SOSScreenState extends State<SOSScreen>
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '⚠️ No internet — SOS will not work. Enable WiFi or mobile data.',
+                  'âš ï¸ No internet â€” SOS will not work. Enable WiFi or mobile data.',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -2233,7 +2279,7 @@ class _SOSScreenState extends State<SOSScreen>
                       labelText: "Your Name",
                       border: const OutlineInputBorder(),
                       helperText: _nameController.text.isEmpty
-                          ? "⚠️ Please enter your name before sending SOS"
+                          ? "âš ï¸ Please enter your name before sending SOS"
                           : "Also editable in Profile",
                     ),
                     onChanged: (val) async {
@@ -2322,7 +2368,7 @@ class _SOSScreenState extends State<SOSScreen>
                                       fontSize: 14)),
                               Text(
                                   _crashDetectionEnabled
-                                      ? 'Active — watching for impact'
+                                      ? 'Active â€” watching for impact'
                                       : 'Turn on when riding',
                                   style: const TextStyle(
                                       color: Colors.grey, fontSize: 11)),
@@ -2344,7 +2390,7 @@ class _SOSScreenState extends State<SOSScreen>
                       ],
                     ),
                   ),
-                  // Hidden test button — long press the toggle container label
+                  // Hidden test button â€” long press the toggle container label
                   const SizedBox(height: 8),
                   if (_crashDetectionEnabled)
                     GestureDetector(
@@ -2411,7 +2457,7 @@ class _SOSScreenState extends State<SOSScreen>
                         color: Colors.green,
                         borderRadius: BorderRadius.circular(40),
                       ),
-                      child: const Text("I'M OK — CANCEL",
+                      child: const Text("I'M OK â€” CANCEL",
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 20,
@@ -2430,9 +2476,9 @@ class _SOSScreenState extends State<SOSScreen>
     );
   }
 }
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // HUD SCREEN
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class HUDScreen extends StatefulWidget {
   final double targetLat;
   final double targetLng;
@@ -2793,8 +2839,8 @@ class _HUDScreenState extends State<HUDScreen>
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
                 _hudMode
-                    ? 'HUD MODE — Place phone on dashboard'
-                    : 'NORMAL MODE — Tap 👁 to flip for windscreen',
+                    ? 'HUD MODE â€” Place phone on dashboard'
+                    : 'NORMAL MODE â€” Tap ðŸ‘ to flip for windscreen',
                 style: const TextStyle(
                     color: Colors.white24,
                     fontSize: 11,
@@ -2822,9 +2868,9 @@ class _HUDScreenState extends State<HUDScreen>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // OFFICER DASHBOARD
-// ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class OfficerDashboard extends StatefulWidget {
   final CompanyConfig company;
   final double responseRadiusKm;
@@ -2931,7 +2977,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.map),
-                label: const Text('Google Maps — Normal'),
+                label: const Text('Google Maps â€” Normal'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     padding: const EdgeInsets.all(14)),
@@ -2943,7 +2989,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.remove_red_eye),
-                label: const Text('Google Maps — HUD Mode'),
+                label: const Text('Google Maps â€” HUD Mode'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     padding: const EdgeInsets.all(14)),
@@ -2990,7 +3036,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                     style:
                         TextStyle(color: Colors.white70, fontSize: 13)),
                 SizedBox(height: 12),
-                Text('1. Tap the ⊙ menu (top right)',
+                Text('1. Tap the âŠ™ menu (top right)',
                     style: TextStyle(color: Colors.white, fontSize: 14)),
                 SizedBox(height: 6),
                 Text('2. Tap "HUD mode"',
@@ -3019,9 +3065,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // RESOLVE ALERT — logs officer name + timestamp
-  // ─────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // RESOLVE ALERT â€” logs officer name + timestamp
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _resolveAlert(String id) async {
     try {
       // Get officer's device ID and look up their profile name
@@ -3058,7 +3104,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Alert resolved by $officerName'),
+            content: Text('âœ… Alert resolved by $officerName'),
             backgroundColor: Colors.green[800],
           ),
         );
@@ -3369,7 +3415,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              "📍¡ Showing alerts within ${widget.responseRadiusKm.toStringAsFixed(0)} km",
+                              "ðŸ“Â¡ Showing alerts within ${widget.responseRadiusKm.toStringAsFixed(0)} km",
                               style: const TextStyle(
                                   fontSize: 12, color: Colors.grey),
                             ),
@@ -3427,7 +3473,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
-                              "🚨 ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''} — Tap to view list",
+                              "ðŸš¨ ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''} â€” Tap to view list",
                               style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold),
@@ -3497,7 +3543,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                               ],
                             ),
                             Text(
-                              "📍 ${_selectedAlert!['lat'].toStringAsFixed(5)}, ${_selectedAlert!['lng'].toStringAsFixed(5)}",
+                              "ðŸ“ ${_selectedAlert!['lat'].toStringAsFixed(5)}, ${_selectedAlert!['lng'].toStringAsFixed(5)}",
                               style:
                                   const TextStyle(color: Colors.grey),
                             ),
@@ -3665,6 +3711,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
   }
 }
+
 
 
 
