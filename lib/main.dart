@@ -112,7 +112,7 @@ Future<void> showAlertNotification(String name, String location,
   await _notifications.show(
     notificationId,
     'ðŸš¨ SOS ALERT â€” $name',
-    'ðŸ“ $location',
+    '📍 $location',
     details,
     payload: alertId,
   );
@@ -123,10 +123,10 @@ Future<void> showAlertNotification(String name, String location,
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // This class manages escalating reminders for officers about unresolved SOS alerts.
 // Schedule:
-//   0 â€”Å“ 60s      â†’Â â€™ remind every 10s
-//   60s â€”Å“ 10min  â†’Â â€™ remind every 60s
-//   10min â€”Å“ 60minâ†’Â â€™ remind every 10min
-//   60min+       â†’Â â€™ remind every 60min
+//   0 â€”Å“ 60s      â†’Â ’ remind every 10s
+//   60s â€”Å“ 10min  â†’Â ’ remind every 60s
+//   10min â€”Å“ 60minâ†’Â ’ remind every 10min
+//   60min+       â†’Â ’ remind every 60min
 class SOSEscalationManager {
   // Map of alertId -> timer for that alert
   static final Map<String, Timer> _timers = {};
@@ -222,7 +222,7 @@ class SOSEscalationManager {
     final notificationId = alertId.hashCode.abs() % 10000;
     await showAlertNotification(
       name,
-      'ðŸ“ $lat, $lng  â€¢  Started $ageLabel',
+      '📍 $lat, $lng  •  Started $ageLabel',
       notificationId: notificationId,
       alertId: alertId,
     );
@@ -538,20 +538,11 @@ Future<CompanyConfig?> getCompanyData(String companyId) async {
   );
 }
 
-String normalizePhone(String phone, {String countryCode = '27'}) {
-  String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)\.\+]'), '');
-  if (cleaned.startsWith('00')) cleaned = cleaned.substring(2);
-  if (cleaned.startsWith('0')) cleaned = countryCode + cleaned.substring(1);
-  if (!cleaned.startsWith(countryCode)) cleaned = countryCode + cleaned;
-  return cleaned;
-}
-
 Future<void> sendWhatsAppAlert({
   required String phone,
   required String userName,
   required double lat,
   required double lng,
-  String countryCode = '27',
 }) async {
   try {
     final whatsappCheck = Uri.parse('whatsapp://send');
@@ -559,12 +550,16 @@ Future<void> sendWhatsAppAlert({
       debugPrint('WhatsApp not installed, skipping alert');
       return;
     }
-    String cleaned = normalizePhone(phone, countryCode: countryCode);
+    String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    if (cleaned.startsWith('0')) {
+      cleaned = '+27${cleaned.substring(1)}';
+    }
+    cleaned = cleaned.replaceAll('+', '');
     final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
     final message = Uri.encodeComponent(
         'ðŸš¨ EMERGENCY ALERT ðŸš¨\n\n'
         '$userName needs urgent help!\n\n'
-        'ðŸ“ Location: $mapsLink\n\n'
+        '📍 Location: $mapsLink\n\n'
         'Please respond immediately or call emergency services.');
     final url = 'whatsapp://send?phone=$cleaned&text=$message';
     final uri = Uri.parse(url);
@@ -1298,7 +1293,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
   bool _loading = true;
-  String _countryCode = '27';
 
   final _nameCtrl = TextEditingController();
   final _idCtrl = TextEditingController();
@@ -1353,7 +1347,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _workAddressCtrl.text = d['workAddress'] ?? '';
       _wa1NameCtrl.text = d['wa1Name'] ?? '';
       _wa1PhoneCtrl.text = d['wa1Phone'] ?? '';
-      _countryCode = d['countryCode'] ?? '27';
       _wa2NameCtrl.text = d['wa2Name'] ?? '';
       _wa2PhoneCtrl.text = d['wa2Phone'] ?? '';
       _wa3NameCtrl.text = d['wa3Name'] ?? '';
@@ -1382,7 +1375,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'contact2Rel': _contact2RelCtrl.text.trim(),
       'homeAddress': _homeAddressCtrl.text.trim(),
       'workAddress': _workAddressCtrl.text.trim(),
-      'countryCode': _countryCode,
       'wa1Name': _wa1NameCtrl.text.trim(),
       'wa1Phone': _wa1PhoneCtrl.text.trim(),
       'wa2Name': _wa2NameCtrl.text.trim(),
@@ -1480,10 +1472,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             controller: phoneCtrl,
             keyboardType: TextInputType.phone,
             decoration: const InputDecoration(
-                labelText: "WhatsApp Number",
-                hintText: "e.g. 0821234567",
-                helperText: "Any format works — local or international",
-                helperStyle: TextStyle(color: Colors.grey, fontSize: 11),
+                labelText: "WhatsApp Number (e.g. 0821234567)",
                 border: OutlineInputBorder(),
                 isDense: true),
           ),
@@ -1579,44 +1568,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Icons.chat,
                     subtitle:
                         "These contacts receive a WhatsApp message with your location when you trigger SOS.",
-                  ),
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[700]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        dropdownColor: Colors.grey[900],
-                        value: _countryCode,
-                        hint: const Text('Select country code', style: TextStyle(color: Colors.grey)),
-                        items: [
-                          {'name': 'South Africa (+27)', 'code': '27', 'flag': '🇿🇦'},
-                          {'name': 'United States (+1)', 'code': '1', 'flag': '🇺🇸'},
-                          {'name': 'United Kingdom (+44)', 'code': '44', 'flag': '🇬🇧'},
-                          {'name': 'Australia (+61)', 'code': '61', 'flag': '🇦🇺'},
-                          {'name': 'Zimbabwe (+263)', 'code': '263', 'flag': '🇿🇼'},
-                          {'name': 'Botswana (+267)', 'code': '267', 'flag': '🇧🇼'},
-                          {'name': 'Namibia (+264)', 'code': '264', 'flag': '🇳🇦'},
-                          {'name': 'Zambia (+260)', 'code': '260', 'flag': '🇿🇲'},
-                          {'name': 'Mozambique (+258)', 'code': '258', 'flag': '🇲🇿'},
-                          {'name': 'Germany (+49)', 'code': '49', 'flag': '🇩🇪'},
-                          {'name': 'Netherlands (+31)', 'code': '31', 'flag': '🇳🇱'},
-                          {'name': 'New Zealand (+64)', 'code': '64', 'flag': '🇳🇿'},
-                          {'name': 'Brazil (+55)', 'code': '55', 'flag': '🇧🇷'},
-                          {'name': 'India (+91)', 'code': '91', 'flag': '🇮🇳'},
-                          {'name': 'Other', 'code': '27', 'flag': '🌍'},
-                        ].map<DropdownMenuItem<String>>((c) => DropdownMenuItem<String>(
-                          value: c['code'],
-                          child: Text('${c['flag']} ${c['name']}',
-                              style: const TextStyle(color: Colors.white, fontSize: 14)),
-                        )).toList(),
-                        onChanged: (v) => setState(() => _countryCode = v ?? '27'),
-                      ),
-                    ),
                   ),
                   _waContactBlock(
                       "Contact 1", _wa1NameCtrl, _wa1PhoneCtrl),
@@ -1887,7 +1838,7 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                                 fontSize: 13)),
                       ]),
                       const SizedBox(height: 6),
-                      ...contacts.map((c) => Text("â€¢ $c",
+                      ...contacts.map((c) => Text("• $c",
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 13))),
                     ],
@@ -2083,7 +2034,6 @@ class _SOSScreenState extends State<SOSScreen>
   Future<void> _sendWhatsAppAlerts(
       Map<String, dynamic> profile, double lat, double lng) async {
     final userName = profile['name'] ?? 'User';
-    final countryCode = (profile['countryCode'] ?? '27').toString();
     final contacts = [
       {'name': profile['wa1Name'], 'phone': profile['wa1Phone']},
       {'name': profile['wa2Name'], 'phone': profile['wa2Phone']},
@@ -2097,7 +2047,6 @@ class _SOSScreenState extends State<SOSScreen>
           userName: userName,
           lat: lat,
           lng: lng,
-          countryCode: countryCode,
         );
       }
     }
@@ -3420,7 +3369,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              "ðŸ“Â¡ Showing alerts within ${widget.responseRadiusKm.toStringAsFixed(0)} km",
+                              "📍Â¡ Showing alerts within ${widget.responseRadiusKm.toStringAsFixed(0)} km",
                               style: const TextStyle(
                                   fontSize: 12, color: Colors.grey),
                             ),
@@ -3548,7 +3497,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                               ],
                             ),
                             Text(
-                              "ðŸ“ ${_selectedAlert!['lat'].toStringAsFixed(5)}, ${_selectedAlert!['lng'].toStringAsFixed(5)}",
+                              "📍 ${_selectedAlert!['lat'].toStringAsFixed(5)}, ${_selectedAlert!['lng'].toStringAsFixed(5)}",
                               style:
                                   const TextStyle(color: Colors.grey),
                             ),
