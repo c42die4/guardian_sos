@@ -538,19 +538,10 @@ Future<CompanyConfig?> getCompanyData(String companyId) async {
   );
 }
 
-// Normalize phone number to international format without + prefix
-// Accepts: 0821234567, 082 123 4567, +27821234567, 27821234567
-// Country code dropdown value should be like "27" for SA, "44" for UK etc.
 String normalizePhone(String phone, {String countryCode = '27'}) {
-  // Remove all spaces, dashes, brackets
-  String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)\.]'), '');
-  // Remove leading +
-  if (cleaned.startsWith('+')) cleaned = cleaned.substring(1);
-  // If starts with 00 (international prefix) remove it
+  String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)\.\+]'), '');
   if (cleaned.startsWith('00')) cleaned = cleaned.substring(2);
-  // If starts with 0 (local format) replace with country code
   if (cleaned.startsWith('0')) cleaned = countryCode + cleaned.substring(1);
-  // If doesn't start with country code, add it
   if (!cleaned.startsWith(countryCode)) cleaned = countryCode + cleaned;
   return cleaned;
 }
@@ -1307,8 +1298,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
   bool _loading = true;
-  double _radiusKm = 50.0;
-  String _countryCode = '27'; // Default South Africa
+  String _countryCode = '27';
 
   final _nameCtrl = TextEditingController();
   final _idCtrl = TextEditingController();
@@ -1363,11 +1353,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _workAddressCtrl.text = d['workAddress'] ?? '';
       _wa1NameCtrl.text = d['wa1Name'] ?? '';
       _wa1PhoneCtrl.text = d['wa1Phone'] ?? '';
+      _countryCode = d['countryCode'] ?? '27';
       _wa2NameCtrl.text = d['wa2Name'] ?? '';
       _wa2PhoneCtrl.text = d['wa2Phone'] ?? '';
       _wa3NameCtrl.text = d['wa3Name'] ?? '';
       _wa3PhoneCtrl.text = d['wa3Phone'] ?? '';
-      _countryCode = d['countryCode'] ?? '27';
     }
     setState(() => _loading = false);
   }
@@ -1489,12 +1479,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextFormField(
             controller: phoneCtrl,
             keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
                 labelText: "WhatsApp Number",
-                hintText: "e.g. 0821234567 or +27821234567",
-                helperText: "Enter in any format — we handle the rest",
-                helperStyle: const TextStyle(color: Colors.grey, fontSize: 11),
-                border: const OutlineInputBorder(),
+                hintText: "e.g. 0821234567",
+                helperText: "Any format works — local or international",
+                helperStyle: TextStyle(color: Colors.grey, fontSize: 11),
+                border: OutlineInputBorder(),
                 isDense: true),
           ),
         ],
@@ -1590,7 +1580,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle:
                         "These contacts receive a WhatsApp message with your location when you trigger SOS.",
                   ),
-                  // Country code selector
                   Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -1603,8 +1592,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         isExpanded: true,
                         dropdownColor: Colors.grey[900],
                         value: _countryCode,
-                        hint: const Text('Select country', style: TextStyle(color: Colors.grey)),
-                        items: kCountryCodes.map((c) => DropdownMenuItem(
+                        hint: const Text('Select country code', style: TextStyle(color: Colors.grey)),
+                        items: [
+                          {'name': 'South Africa (+27)', 'code': '27', 'flag': '🇿🇦'},
+                          {'name': 'United States (+1)', 'code': '1', 'flag': '🇺🇸'},
+                          {'name': 'United Kingdom (+44)', 'code': '44', 'flag': '🇬🇧'},
+                          {'name': 'Australia (+61)', 'code': '61', 'flag': '🇦🇺'},
+                          {'name': 'Zimbabwe (+263)', 'code': '263', 'flag': '🇿🇼'},
+                          {'name': 'Botswana (+267)', 'code': '267', 'flag': '🇧🇼'},
+                          {'name': 'Namibia (+264)', 'code': '264', 'flag': '🇳🇦'},
+                          {'name': 'Zambia (+260)', 'code': '260', 'flag': '🇿🇲'},
+                          {'name': 'Mozambique (+258)', 'code': '258', 'flag': '🇲🇿'},
+                          {'name': 'Germany (+49)', 'code': '49', 'flag': '🇩🇪'},
+                          {'name': 'Netherlands (+31)', 'code': '31', 'flag': '🇳🇱'},
+                          {'name': 'New Zealand (+64)', 'code': '64', 'flag': '🇳🇿'},
+                          {'name': 'Brazil (+55)', 'code': '55', 'flag': '🇧🇷'},
+                          {'name': 'India (+91)', 'code': '91', 'flag': '🇮🇳'},
+                          {'name': 'Other', 'code': '27', 'flag': '🌍'},
+                        ].map<DropdownMenuItem<String>>((c) => DropdownMenuItem<String>(
                           value: c['code'],
                           child: Text('${c['flag']} ${c['name']}',
                               style: const TextStyle(color: Colors.white, fontSize: 14)),
