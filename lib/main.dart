@@ -46,7 +46,7 @@ void _handleNotificationAction(String? actionId, String? alertId) {
     }).catchError((_) {});
     SOSEscalationManager.stopEscalation(alertId);
   } else if (actionId == 'remind_10') {
-    // Snooze for 10 minutes â€” stop escalation and restart after delay
+    // Snooze for 10 minutes  -  stop escalation and restart after delay
     SOSEscalationManager.snoozeEscalation(alertId, const Duration(minutes: 10));
   }
 }
@@ -111,7 +111,7 @@ Future<void> showAlertNotification(String name, String location,
       NotificationDetails(android: androidDetails);
   await _notifications.show(
     notificationId,
-    'ðŸš¨ SOS ALERT â€” $name',
+    'ðŸš¨ SOS ALERT  -  $name',
     '📍 $location',
     details,
     payload: alertId,
@@ -123,9 +123,9 @@ Future<void> showAlertNotification(String name, String location,
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // This class manages escalating reminders for officers about unresolved SOS alerts.
 // Schedule:
-//   0 â€”Å“ 60s      â†’Â ’ remind every 10s
-//   60s â€”Å“ 10min  â†’Â ’ remind every 60s
-//   10min â€”Å“ 60minâ†’Â ’ remind every 10min
+//   0  - Å“ 60s      â†’Â ’ remind every 10s
+//   60s  - Å“ 10min  â†’Â ’ remind every 60s
+//   10min  - Å“ 60minâ†’Â ’ remind every 10min
 //   60min+       â†’Â ’ remind every 60min
 class SOSEscalationManager {
   // Map of alertId -> timer for that alert
@@ -154,7 +154,7 @@ class SOSEscalationManager {
     });
   }
 
-  /// Call this when an alert is resolved or cancelled â€” stops the reminders.
+  /// Call this when an alert is resolved or cancelled  -  stops the reminders.
   static void stopEscalation(String alertId) {
     _timers[alertId]?.cancel();
     _timers.remove(alertId);
@@ -276,7 +276,7 @@ class LocationTaskHandler extends TaskHandler {
   void onRepeatEvent(DateTime timestamp) async {
     if (_alertId == null) return;
     try {
-      // Check if alert is still active â€” stop service if resolved or cancelled
+      // Check if alert is still active  -  stop service if resolved or cancelled
       final alertSnap = await FirebaseFirestore.instance
           .collection('alerts')
           .doc(_alertId)
@@ -284,12 +284,12 @@ class LocationTaskHandler extends TaskHandler {
       if (alertSnap.exists) {
         final status = alertSnap.data()?['status'] as String?;
         if (status == 'RESOLVED' || status == 'CANCELLED') {
-          debugPrint('Alert no longer active ($status) â€” stopping foreground service');
+          debugPrint('Alert no longer active ($status)  -  stopping foreground service');
           await FlutterForegroundTask.stopService();
           return;
         }
       } else {
-        // Alert document doesn't exist â€” stop service
+        // Alert document doesn't exist  -  stop service
         await FlutterForegroundTask.stopService();
         return;
       }
@@ -314,7 +314,7 @@ class LocationTaskHandler extends TaskHandler {
 
       FlutterForegroundTask.updateService(
         notificationTitle: 'ðŸš¨ SOS Active',
-        notificationText: 'SOS Active â€” Sharing your location with officers',
+        notificationText: 'SOS Active  -  Sharing your location with officers',
       );
     } catch (e) {
       debugPrint('Location task error: $e');
@@ -490,7 +490,7 @@ Future<void> saveRadius(double km) async {
   } catch (_) {}
 }
 
-/// Haversine formula â€” returns distance in km between two GPS points
+/// Haversine formula  -  returns distance in km between two GPS points
 double distanceKm(double lat1, double lng1, double lat2, double lng2) {
   const r = 6371.0;
   final dLat = _deg2rad(lat2 - lat1);
@@ -1047,7 +1047,7 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _stopOrphanedService() async {
     // Stop any foreground service that survived from a previous session
-    // without an active SOS â€” this prevents the phantom notification
+    // without an active SOS  -  this prevents the phantom notification
     try {
       if (await FlutterForegroundTask.isRunningService) {
         // Check if there is actually an active SOS for this device
@@ -1058,7 +1058,7 @@ class _AppShellState extends State<AppShell> {
             .where('status', isEqualTo: 'ACTIVE')
             .get();
         if (activeAlerts.docs.isEmpty) {
-          // No active SOS â€” stop the orphaned service
+          // No active SOS  -  stop the orphaned service
           await FlutterForegroundTask.stopService();
           debugPrint('Stopped orphaned foreground service on startup');
         }
@@ -1228,7 +1228,7 @@ class _AppShellState extends State<AppShell> {
               Flexible(
                 child: Text(
                   isOfficer && isOfficerMode
-                      ? "${widget.company.name} â€” OFFICER"
+                      ? "${widget.company.name}  -  OFFICER"
                       : widget.company.name,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 16),
@@ -1250,7 +1250,7 @@ class _AppShellState extends State<AppShell> {
                 },
               ),
             if (isOfficer) ...[
-              // Radius button â€” only show in officer mode
+              // Radius button  -  only show in officer mode
               if (isOfficerMode)
                 IconButton(
                   icon: const Icon(Icons.radar),
@@ -2068,7 +2068,7 @@ class _SOSScreenState extends State<SOSScreen>
               Text('No Internet Connection'),
             ]),
             content: const Text(
-              'Cannot send SOS â€” your phone has no internet connection.\n\n'
+              'Cannot send SOS  -  your phone has no internet connection.\n\n'
               'Please enable WiFi or mobile data, then try again.\n\n'
               'You can still call emergency services directly.',
               style: TextStyle(fontSize: 14, height: 1.5),
@@ -2210,7 +2210,7 @@ class _SOSScreenState extends State<SOSScreen>
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'âš ï¸ No internet â€” SOS will not work. Enable WiFi or mobile data.',
+                  'âš ï¸ No internet  -  SOS will not work. Enable WiFi or mobile data.',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -2322,7 +2322,7 @@ class _SOSScreenState extends State<SOSScreen>
                                       fontSize: 14)),
                               Text(
                                   _crashDetectionEnabled
-                                      ? 'Active â€” watching for impact'
+                                      ? 'Active  -  watching for impact'
                                       : 'Turn on when riding',
                                   style: const TextStyle(
                                       color: Colors.grey, fontSize: 11)),
@@ -2344,7 +2344,7 @@ class _SOSScreenState extends State<SOSScreen>
                       ],
                     ),
                   ),
-                  // Hidden test button â€” long press the toggle container label
+                  // Hidden test button  -  long press the toggle container label
                   const SizedBox(height: 8),
                   if (_crashDetectionEnabled)
                     GestureDetector(
@@ -2411,7 +2411,7 @@ class _SOSScreenState extends State<SOSScreen>
                         color: Colors.green,
                         borderRadius: BorderRadius.circular(40),
                       ),
-                      child: const Text("I'M OK â€” CANCEL",
+                      child: const Text("I'M OK  -  CANCEL",
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 20,
@@ -2793,8 +2793,8 @@ class _HUDScreenState extends State<HUDScreen>
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
                 _hudMode
-                    ? 'HUD MODE â€” Place phone on dashboard'
-                    : 'NORMAL MODE â€” Tap ðŸ‘ to flip for windscreen',
+                    ? 'HUD MODE  -  Place phone on dashboard'
+                    : 'NORMAL MODE  -  Tap ðŸ‘ to flip for windscreen',
                 style: const TextStyle(
                     color: Colors.white24,
                     fontSize: 11,
@@ -2931,7 +2931,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.map),
-                label: const Text('Google Maps â€” Normal'),
+                label: const Text('Google Maps  -  Normal'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     padding: const EdgeInsets.all(14)),
@@ -2943,7 +2943,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.remove_red_eye),
-                label: const Text('Google Maps â€” HUD Mode'),
+                label: const Text('Google Maps  -  HUD Mode'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     padding: const EdgeInsets.all(14)),
@@ -3020,7 +3020,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // RESOLVE ALERT â€” logs officer name + timestamp
+  // RESOLVE ALERT  -  logs officer name + timestamp
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _resolveAlert(String id) async {
     try {
@@ -3427,7 +3427,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
-                              "ðŸš¨ ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''} â€” Tap to view list",
+                              "ðŸš¨ ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''}  -  Tap to view list",
                               style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold),
