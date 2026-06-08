@@ -3369,7 +3369,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              Showing alerts within ${widget.responseRadiusKm.toStringAsFixed(0)} km",
+                              'Showing alerts within ${widget.responseRadiusKm.toStringAsFixed(0)} km',
                               style: const TextStyle(
                                   fontSize: 12, color: Colors.grey),
                             ),
