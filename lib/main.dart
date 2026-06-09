@@ -388,6 +388,9 @@ class CompanyConfig {
   final String emergencyPhone;
   final bool isTrial;
   final String trialEnds;
+  final String companyType;
+
+  bool get isAdventure => companyType == 'adventure';
 
   CompanyConfig({
     required this.id,
@@ -399,6 +402,7 @@ class CompanyConfig {
     required this.emergencyPhone,
     this.isTrial = false,
     this.trialEnds = '',
+    this.companyType = 'standard',
   });
 
   bool get isTrialExpired {
@@ -428,6 +432,7 @@ class CompanyConfig {
       emergencyPhone: data['emergencyPhone'] ?? '',
       isTrial: data['isTrial'] ?? false,
       trialEnds: data['trialEnds'] ?? '',
+      companyType: data['companyType'] ?? 'standard',
     );
   }
 }
@@ -514,6 +519,7 @@ Future<void> saveCompanyData(CompanyConfig company) async {
   await prefs.setString('company_phone', company.emergencyPhone);
   await prefs.setBool('company_is_trial', company.isTrial);
   await prefs.setString('company_trial_ends', company.trialEnds);
+  await prefs.setString('company_type', company.companyType);
 }
 
 Future<CompanyConfig?> getCompanyData(String companyId) async {
@@ -535,6 +541,7 @@ Future<CompanyConfig?> getCompanyData(String companyId) async {
     emergencyPhone: prefs.getString('company_phone') ?? '',
     isTrial: prefs.getBool('company_is_trial') ?? false,
     trialEnds: prefs.getString('company_trial_ends') ?? '',
+    companyType: prefs.getString('company_type') ?? 'standard',
   );
 }
 
@@ -2133,6 +2140,112 @@ class _SOSScreenState extends State<SOSScreen>
     }
   }
 
+  Widget _helpButton(String label, IconData icon, Color color, String type) {
+    return GestureDetector(
+      onTap: () => _sendHelpAlert(type, label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          border: Border.all(color: color.withOpacity(0.5)),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+  Future<void> _sendHelpAlert(String type, String label) async {
+    final connected = await hasInternet();
+    if (!connected) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection')));
+      return;
+    }
+    try {
+      Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+      final profile = await _getProfileSnapshot();
+      await FirebaseFirestore.instance.collection('alerts').add({
+        'userName': profile['name'] ?? 'Rider',
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'status': 'ACTIVE',
+        'helpType': type,
+        'timestamp': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'profile': profile,
+        'companyId': widget.company.id,
+      });
+      Vibration.vibrate(duration: 500);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(label + ' alert sent - organiser notified!'),
+            backgroundColor: Colors.green[800],
+          ));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send alert: ' + e.toString())));
+    }
+  }
+  Widget _helpButton(String label, IconData icon, Color color, String type) {
+    return GestureDetector(
+      onTap: () => _sendHelpAlert(type, label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          border: Border.all(color: color.withOpacity(0.5)),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+  Future<void> _sendHelpAlert(String type, String label) async {
+    final connected = await hasInternet();
+    if (!connected) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection')));
+      return;
+    }
+    try {
+      Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+      final profile = await _getProfileSnapshot();
+      await FirebaseFirestore.instance.collection('alerts').add({
+        'userName': profile['name'] ?? 'Rider',
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'status': 'ACTIVE',
+        'helpType': type,
+        'timestamp': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'profile': profile,
+        'companyId': widget.company.id,
+      });
+      Vibration.vibrate(duration: 500);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(label + ' alert sent - organiser notified!'),
+            backgroundColor: Colors.green[800],
+          ));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send alert: ' + e.toString())));
+    }
+  }
   void _onSOSCancelled() {
     setState(() => _sosActive = false);
     // Always stop service when SOS ends
@@ -2344,6 +2457,24 @@ class _SOSScreenState extends State<SOSScreen>
                       ],
                     ),
                   ),
+                  // Adventure mode help buttons
+                  if (widget.company.isAdventure) ...[
+                    const SizedBox(height: 20),
+                    const Text('Need help?',
+                        style: TextStyle(color: Colors.grey, fontSize: 13)),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: _helpButton('Lost', Icons.explore_off, Colors.blue, 'LOST')),
+                      const SizedBox(width: 8),
+                      Expanded(child: _helpButton('Fuel', Icons.local_gas_station, Colors.orange, 'FUEL')),
+                    ]),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(child: _helpButton('Breakdown', Icons.build, Colors.purple, 'BREAKDOWN')),
+                      const SizedBox(width: 8),
+                      Expanded(child: _helpButton('Medical', Icons.medical_services, Colors.red, 'MEDICAL')),
+                    ]),
+                  ],
                   // Hidden test button  -  long press the toggle container label
                   const SizedBox(height: 8),
                   if (_crashDetectionEnabled)
@@ -3073,6 +3204,24 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     }
   }
 
+  IconData _alertIcon(String? helpType) {
+    switch (helpType) {
+      case 'LOST': return Icons.explore_off;
+      case 'FUEL': return Icons.local_gas_station;
+      case 'BREAKDOWN': return Icons.build;
+      case 'MEDICAL': return Icons.medical_services;
+      default: return Icons.warning;
+    }
+  }
+  Color _alertColor(String? helpType, Color defaultColor) {
+    switch (helpType) {
+      case 'LOST': return Colors.blue;
+      case 'FUEL': return Colors.orange;
+      case 'BREAKDOWN': return Colors.purple;
+      case 'MEDICAL': return Colors.red;
+      default: return defaultColor;
+    }
+  }
   String _lastSeen(dynamic timestamp) {
     if (timestamp == null) return "Last seen just now";
     final dt = (timestamp as Timestamp).toDate();
