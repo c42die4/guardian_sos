@@ -2193,59 +2193,6 @@ class _SOSScreenState extends State<SOSScreen>
           SnackBar(content: Text('Failed to send alert: ' + e.toString())));
     }
   }
-  Widget _helpButton(String label, IconData icon, Color color, String type) {
-    return GestureDetector(
-      onTap: () => _sendHelpAlert(type, label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.15),
-          border: Border.all(color: color.withOpacity(0.5)),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(height: 4),
-            Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
-  Future<void> _sendHelpAlert(String type, String label) async {
-    final connected = await hasInternet();
-    if (!connected) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')));
-      return;
-    }
-    try {
-      Position pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
-      final profile = await _getProfileSnapshot();
-      await FirebaseFirestore.instance.collection('alerts').add({
-        'userName': profile['name'] ?? 'Rider',
-        'lat': pos.latitude,
-        'lng': pos.longitude,
-        'status': 'ACTIVE',
-        'helpType': type,
-        'timestamp': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'profile': profile,
-        'companyId': widget.company.id,
-      });
-      Vibration.vibrate(duration: 500);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(label + ' alert sent - organiser notified!'),
-            backgroundColor: Colors.green[800],
-          ));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send alert: ' + e.toString())));
-    }
-  }
   void _onSOSCancelled() {
     setState(() => _sosActive = false);
     // Always stop service when SOS ends

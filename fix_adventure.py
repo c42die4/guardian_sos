@@ -1,13 +1,16 @@
-﻿with open("android/app/build.gradle.kts", "r") as f:
+﻿with open("lib/main.dart", "r", encoding="utf-8") as f:
     c = f.read()
-old = '        create("highway_devils") {\n            dimension = "company"\n            applicationId = "com.highwaydevils.emergency"\n            resValue("string", "app_name", "Highway Devils")\n        }\n    }\n}'
-new = '        create("highway_devils") {\n            dimension = "company"\n            applicationId = "com.highwaydevils.emergency"\n            resValue("string", "app_name", "Highway Devils")\n        }\n        create("adventure") {\n            dimension = "company"\n            applicationId = "com.cyberwarriors.adventure_sos"\n            resValue("string", "app_name", "Adventure SOS")\n        }\n    }\n}'
-if old in c:
-    c = c.replace(old, new)
-    print("Fixed!")
+# Remove the duplicate - keep only the first occurrence
+first = c.find("  Widget _helpButton(")
+second = c.find("  Widget _helpButton(", first + 1)
+if second > 0:
+    # Find end of second duplicate block (ends before _onSOSCancelled)
+    end = c.find("  void _onSOSCancelled() {", second)
+    c = c[:second] + c[end:]
+    print("Duplicate removed!")
 else:
-    print("NOT FOUND - checking end of file:")
-    print(c[-300:])
-with open("android/app/build.gradle.kts", "w") as f:
+    print("No duplicate found")
+print("Count of _helpButton:", c.count("Widget _helpButton("))
+print("Lines:", len(c.splitlines()))
+with open("lib/main.dart", "w", encoding="utf-8") as f:
     f.write(c)
-print("adventure in file:", "adventure_sos" in c)
