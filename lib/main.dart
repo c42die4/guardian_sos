@@ -18,9 +18,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // NOTIFICATIONS
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 final FlutterLocalNotificationsPlugin _notifications =
     FlutterLocalNotificationsPlugin();
 
@@ -82,7 +82,7 @@ Future<void> showAlertNotification(String name, String location,
   final List<AndroidNotificationAction> actions = [
     const AndroidNotificationAction(
       'responding',
-      'ðŸï¸ RESPONDING',
+      'ðï¸ RESPONDING',
       showsUserInterface: true,
       cancelNotification: true,
     ),
@@ -111,22 +111,22 @@ Future<void> showAlertNotification(String name, String location,
       NotificationDetails(android: androidDetails);
   await _notifications.show(
     notificationId,
-    'ðŸš¨ SOS ALERT  -  $name',
-    '📍 $location',
+    'SOS ALERT  -  $name',
+    ' $location',
     details,
     payload: alertId,
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // ESCALATING NOTIFICATION MANAGER
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // This class manages escalating reminders for officers about unresolved SOS alerts.
 // Schedule:
-//   0  - Å“ 60s      â†’Â ’ remind every 10s
-//   60s  - Å“ 10min  â†’Â ’ remind every 60s
-//   10min  - Å“ 60minâ†’Â ’ remind every 10min
-//   60min+       â†’Â ’ remind every 60min
+//   0  - Å 60s      âÂ  remind every 10s
+//   60s  - Å 10min  âÂ  remind every 60s
+//   10min  - Å 60minâÂ  remind every 10min
+//   60min+       âÂ  remind every 60min
 class SOSEscalationManager {
   // Map of alertId -> timer for that alert
   static final Map<String, Timer> _timers = {};
@@ -222,7 +222,7 @@ class SOSEscalationManager {
     final notificationId = alertId.hashCode.abs() % 10000;
     await showAlertNotification(
       name,
-      '📍 $lat, $lng  •  Started $ageLabel',
+      ' $lat, $lng    Started $ageLabel',
       notificationId: notificationId,
       alertId: alertId,
     );
@@ -249,9 +249,9 @@ class SOSEscalationManager {
   static Set<String> get trackedAlertIds => _timers.keys.toSet();
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // FOREGROUND TASK HANDLER
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(LocationTaskHandler());
@@ -313,7 +313,7 @@ class LocationTaskHandler extends TaskHandler {
       });
 
       FlutterForegroundTask.updateService(
-        notificationTitle: 'ðŸš¨ SOS Active',
+        notificationTitle: 'SOS Active',
         notificationText: 'SOS Active  -  Sharing your location with officers',
       );
     } catch (e) {
@@ -331,9 +331,9 @@ class LocationTaskHandler extends TaskHandler {
   void onNotificationPressed() {}
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // FOREGROUND SERVICE HELPERS
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 void initForegroundTask() {
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
@@ -364,7 +364,7 @@ Future<void> startLocationService(String alertId, String companyId) async {
     await FlutterForegroundTask.restartService();
   } else {
     await FlutterForegroundTask.startService(
-      notificationTitle: 'ðŸš¨ SOS Active',
+      notificationTitle: 'SOS Active',
       notificationText: 'Sharing your location with officers...',
       callback: startCallback,
     );
@@ -375,9 +375,9 @@ Future<void> stopLocationService() async {
   await FlutterForegroundTask.stopService();
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // COMPANY CONFIG MODEL
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class CompanyConfig {
   final String id;
   final String name;
@@ -440,9 +440,9 @@ class CompanyConfig {
 CompanyConfig? currentCompany;
 String currentRole = 'client';
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // HELPERS
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 Future<String> getDeviceId() async {
   final prefs = await SharedPreferences.getInstance();
   String? id = prefs.getString('device_id');
@@ -474,7 +474,7 @@ Future<void> saveRole(String role) async {
   await prefs.setString('device_role', role);
 }
 
-// â”€â”€ Radius helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ââ Radius helpers âââââââââââââââââââââââââââââââââââââââââââââââââ
 const double kDefaultRadiusKm = 50.0;
 
 Future<double> getSavedRadius() async {
@@ -564,9 +564,9 @@ Future<void> sendWhatsAppAlert({
     cleaned = cleaned.replaceAll('+', '');
     final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
     final message = Uri.encodeComponent(
-        'ðŸš¨ EMERGENCY ALERT ðŸš¨\n\n'
+        'ð¨ EMERGENCY ALERT ð¨\n\n'
         '$userName needs urgent help!\n\n'
-        '📍 Location: $mapsLink\n\n'
+        ' Location: $mapsLink\n\n'
         'Please respond immediately or call emergency services.');
     final url = 'whatsapp://send?phone=$cleaned&text=$message';
     final uri = Uri.parse(url);
@@ -579,9 +579,9 @@ Future<void> sendWhatsAppAlert({
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // CONNECTIVITY
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 Future<bool> hasInternet() async {
   try {
     final socket = await Socket.connect('8.8.8.8', 53,
@@ -618,9 +618,9 @@ class SOSApp extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // APP ENTRY
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class AppEntry extends StatefulWidget {
   const AppEntry({super.key});
   @override
@@ -704,9 +704,9 @@ class _AppEntryState extends State<AppEntry> {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // COMPANY REGISTRATION SCREEN
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class CompanyRegistrationScreen extends StatefulWidget {
   const CompanyRegistrationScreen({super.key});
   @override
@@ -897,9 +897,9 @@ class _CompanyRegistrationScreenState
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // TRIAL EXPIRED SCREEN
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class TrialExpiredScreen extends StatelessWidget {
   final CompanyConfig company;
   const TrialExpiredScreen({super.key, required this.company});
@@ -976,9 +976,9 @@ class TrialExpiredScreen extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // SUBSCRIPTION SUSPENDED SCREEN
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class SubscriptionSuspendedScreen extends StatelessWidget {
   final CompanyConfig company;
   const SubscriptionSuspendedScreen({super.key, required this.company});
@@ -1028,9 +1028,9 @@ class SubscriptionSuspendedScreen extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // APP SHELL
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class AppShell extends StatefulWidget {
   final CompanyConfig company;
   const AppShell({super.key, required this.company});
@@ -1286,9 +1286,9 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // PROFILE SCREEN
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class ProfileScreen extends StatefulWidget {
   final bool isFirstTime;
   const ProfileScreen({super.key, this.isFirstTime = false});
@@ -1616,9 +1616,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // SOS ACTIVE SCREEN
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class SOSActiveScreen extends StatefulWidget {
   final CompanyConfig company;
   final String alertId;
@@ -1845,7 +1845,7 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                                 fontSize: 13)),
                       ]),
                       const SizedBox(height: 6),
-                      ...contacts.map((c) => Text("• $c",
+                      ...contacts.map((c) => Text(" $c",
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 13))),
                     ],
@@ -1890,9 +1890,9 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // SOS SCREEN
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class SOSScreen extends StatefulWidget {
   final CompanyConfig company;
   const SOSScreen({super.key, required this.company});
@@ -2161,6 +2161,27 @@ class _SOSScreenState extends State<SOSScreen>
     );
   }
   Future<void> _sendHelpAlert(String type, String label) async {
+    // Confirm before sending
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: Text('Send $label Alert?'),
+        content: Text('This will notify your guide that you need $label assistance. Are you sure?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Yes, Send Alert'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
     final connected = await hasInternet();
     if (!connected) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -2270,7 +2291,7 @@ class _SOSScreenState extends State<SOSScreen>
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'âš ï¸ No internet  -  SOS will not work. Enable WiFi or mobile data.',
+                  'â ï¸ No internet  -  SOS will not work. Enable WiFi or mobile data.',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -2283,7 +2304,7 @@ class _SOSScreenState extends State<SOSScreen>
           child: SingleChildScrollView(
             physics: const ClampingScrollPhysics(),
             child: Padding(
-              padding: const EdgeInsets.all(30.0),
+              padding: const EdgeInsets.fromLTRB(30.0, 30.0, 30.0, 100.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -2293,7 +2314,7 @@ class _SOSScreenState extends State<SOSScreen>
                       labelText: "Your Name",
                       border: const OutlineInputBorder(),
                       helperText: _nameController.text.isEmpty
-                          ? "âš ï¸ Please enter your name before sending SOS"
+                          ? "â ï¸ Please enter your name before sending SOS"
                           : "Also editable in Profile",
                     ),
                     onChanged: (val) async {
@@ -2508,9 +2529,9 @@ class _SOSScreenState extends State<SOSScreen>
     );
   }
 }
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // HUD SCREEN
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class HUDScreen extends StatefulWidget {
   final double targetLat;
   final double targetLng;
@@ -2872,7 +2893,7 @@ class _HUDScreenState extends State<HUDScreen>
               child: Text(
                 _hudMode
                     ? 'HUD MODE  -  Place phone on dashboard'
-                    : 'NORMAL MODE  -  Tap ðŸ‘ to flip for windscreen',
+                    : 'NORMAL MODE  -  Tap ð to flip for windscreen',
                 style: const TextStyle(
                     color: Colors.white24,
                     fontSize: 11,
@@ -2900,9 +2921,9 @@ class _HUDScreenState extends State<HUDScreen>
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // OFFICER DASHBOARD
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class OfficerDashboard extends StatefulWidget {
   final CompanyConfig company;
   final double responseRadiusKm;
@@ -3068,7 +3089,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                     style:
                         TextStyle(color: Colors.white70, fontSize: 13)),
                 SizedBox(height: 12),
-                Text('1. Tap the âŠ™ menu (top right)',
+                Text('1. Tap the â menu (top right)',
                     style: TextStyle(color: Colors.white, fontSize: 14)),
                 SizedBox(height: 6),
                 Text('2. Tap "HUD mode"',
@@ -3097,9 +3118,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     }
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
   // RESOLVE ALERT  -  logs officer name + timestamp
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
   Future<void> _resolveAlert(String id) async {
     try {
       // Get officer's device ID and look up their profile name
@@ -3136,7 +3157,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('âœ… Alert resolved by $officerName'),
+            content: Text('â Alert resolved by $officerName'),
             backgroundColor: Colors.green[800],
           ),
         );
@@ -3595,7 +3616,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                               ],
                             ),
                             Text(
-                              "📍 ${_selectedAlert!['lat'].toStringAsFixed(5)}, ${_selectedAlert!['lng'].toStringAsFixed(5)}",
+                              " ${_selectedAlert!['lat'].toStringAsFixed(5)}, ${_selectedAlert!['lng'].toStringAsFixed(5)}",
                               style:
                                   const TextStyle(color: Colors.grey),
                             ),
