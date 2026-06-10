@@ -1649,8 +1649,6 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
   int _seconds = 0;
   String? _respondingBy;
   StreamSubscription? _alertListener;
-  String? _respondingBy;
-  StreamSubscription? _alertListener;
 
   @override
   void initState() {
