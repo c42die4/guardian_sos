@@ -2281,7 +2281,7 @@ class _SOSScreenState extends State<SOSScreen>
           ),
         Expanded(
           child: SingleChildScrollView(
-            physics: const NeverScrollableScrollPhysics(),
+            physics: const ClampingScrollPhysics(),
             child: Padding(
               padding: const EdgeInsets.all(30.0),
               child: Column(
@@ -3408,7 +3408,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                 TileLayer(
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.cyberwarriors.sos'),
+                    userAgentPackageName: 'com.cyberwarriors.sos',
+                    maxZoom: 19,
+                    ),
                 MarkerLayer(
                   markers: alerts.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
@@ -3523,7 +3525,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
-                              "ðŸš¨ ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''}  -  Tap to view list",
+                              "🚨 ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''}  -  Tap to view list",
                               style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold),
