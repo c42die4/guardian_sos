@@ -1647,6 +1647,10 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
   late Animation<double> _pulseAnimation;
   late Timer _timer;
   int _seconds = 0;
+  String? _respondingBy;
+  StreamSubscription? _alertListener;
+  String? _respondingBy;
+  StreamSubscription? _alertListener;
 
   @override
   void initState() {
@@ -1660,10 +1664,42 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       setState(() => _seconds++);
     });
+    _alertListener = FirebaseFirestore.instance
+        .collection('alerts')
+        .doc(widget.alertId)
+        .snapshots()
+        .listen((snap) async {
+      if (!snap.exists) return;
+      final data = snap.data()!;
+      final status = data['status'] as String?;
+      final respondingBy = data['respondingBy'] as String?;
+      if (mounted) setState(() => _respondingBy = respondingBy);
+      if (status == 'RESOLVED' || status == 'CANCELLED') {
+        await stopLocationService();
+        if (mounted) widget.onCancel();
+      }
+    });
+    _alertListener = FirebaseFirestore.instance
+        .collection('alerts')
+        .doc(widget.alertId)
+        .snapshots()
+        .listen((snap) async {
+      if (!snap.exists) return;
+      final data = snap.data()!;
+      final status = data['status'] as String?;
+      final respondingBy = data['respondingBy'] as String?;
+      if (mounted) setState(() => _respondingBy = respondingBy);
+      if (status == 'RESOLVED' || status == 'CANCELLED') {
+        await stopLocationService();
+        if (mounted) widget.onCancel();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _alertListener?.cancel();
+    _alertListener?.cancel();
     _pulseController.dispose();
     _timer.cancel();
     super.dispose();
@@ -1793,14 +1829,18 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                 ),
               ),
               const SizedBox(height: 24),
-              const Text("Help is on the way!",
-                  style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white)),
+              Text(
+                _respondingBy != null ? "Help is on the way!" : "SOS Sent - Waiting for response...",
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: _respondingBy != null ? Colors.white : Colors.orange),
+              ),
               const SizedBox(height: 8),
               Text(
-                "Stay calm. Your location is being tracked and shared with responding officers.",
+                _respondingBy != null
+                    ? "$_respondingBy is on the way to you."
+                    : "Your SOS has been sent. Stay calm and keep your phone with you.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[400], fontSize: 14),
               ),
@@ -3121,7 +3161,45 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   // âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
   // RESOLVE ALERT  -  logs officer name + timestamp
   // âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  Future<void> _markResponding(String id) async {
+    try {
+      final deviceId = await getDeviceId();
+      final profileDoc = await FirebaseFirestore.instance
+          .collection('profiles').doc(deviceId).get();
+      final officerName = (profileDoc.exists &&
+              (profileDoc.data()?['name'] ?? '').isNotEmpty)
+          ? profileDoc.data()!['name'] as String
+          : 'An officer';
+      await FirebaseFirestore.instance.collection('alerts').doc(id).update({
+        'respondingBy': officerName,
+        'respondingAt': FieldValue.serverTimestamp(),
+      });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Marked as responding - member notified'),
+            backgroundColor: Colors.orange[800]));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed: $e')));
+    }
+  }
   Future<void> _resolveAlert(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Resolve Alert?'),
+        content: const Text('Are you sure the situation is under control?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Yes, Resolve')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
     try {
       // Get officer's device ID and look up their profile name
       final deviceId = await getDeviceId();
