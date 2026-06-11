@@ -550,6 +550,7 @@ Future<void> sendWhatsAppAlert({
   required String userName,
   required double lat,
   required double lng,
+  String countryCode = '27',
 }) async {
   try {
     final whatsappCheck = Uri.parse('whatsapp://send');
@@ -557,16 +558,15 @@ Future<void> sendWhatsAppAlert({
       debugPrint('WhatsApp not installed, skipping alert');
       return;
     }
-    String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    if (cleaned.startsWith('0')) {
-      cleaned = '+27${cleaned.substring(1)}';
-    }
-    cleaned = cleaned.replaceAll('+', '');
+    String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+    if (cleaned.startsWith('00')) cleaned = cleaned.substring(2);
+    if (cleaned.startsWith('0')) cleaned = countryCode + cleaned.substring(1);
+    if (!cleaned.startsWith(countryCode)) cleaned = countryCode + cleaned;
     final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
     final message = Uri.encodeComponent(
         'ð¨ EMERGENCY ALERT ð¨\n\n'
         '$userName needs urgent help!\n\n'
-        ' Location: $mapsLink\n\n'
+        'Location: $mapsLink\n\n'
         'Please respond immediately or call emergency services.');
     final url = 'whatsapp://send?phone=$cleaned&text=$message';
     final uri = Uri.parse(url);
@@ -1677,26 +1677,11 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
         if (mounted) widget.onCancel();
       }
     });
-    _alertListener = FirebaseFirestore.instance
-        .collection('alerts')
-        .doc(widget.alertId)
-        .snapshots()
-        .listen((snap) async {
-      if (!snap.exists) return;
-      final data = snap.data()!;
-      final status = data['status'] as String?;
-      final respondingBy = data['respondingBy'] as String?;
-      if (mounted) setState(() => _respondingBy = respondingBy);
-      if (status == 'RESOLVED' || status == 'CANCELLED') {
-        await stopLocationService();
-        if (mounted) widget.onCancel();
-      }
-    });
+
   }
 
   @override
   void dispose() {
-    _alertListener?.cancel();
     _alertListener?.cancel();
     _pulseController.dispose();
     _timer.cancel();
@@ -2079,6 +2064,7 @@ class _SOSScreenState extends State<SOSScreen>
   Future<void> _sendWhatsAppAlerts(
       Map<String, dynamic> profile, double lat, double lng) async {
     final userName = profile['name'] ?? 'User';
+    final countryCode = (profile['countryCode'] ?? '27').toString();
     final contacts = [
       {'name': profile['wa1Name'], 'phone': profile['wa1Phone']},
       {'name': profile['wa2Name'], 'phone': profile['wa2Phone']},
@@ -2092,6 +2078,7 @@ class _SOSScreenState extends State<SOSScreen>
           userName: userName,
           lat: lat,
           lng: lng,
+          countryCode: countryCode,
         );
       }
     }
