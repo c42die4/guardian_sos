@@ -3706,54 +3706,55 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                               children: [
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    icon:
-                                        const Icon(Icons.navigation),
-                                    label: const Text("NAVIGATE"),
+                                    icon: const Icon(Icons.navigation, color: Colors.white),
+                                    label: const Text("NAVIGATE", style: TextStyle(color: Colors.white)),
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.blue,
-                                        padding:
-                                            const EdgeInsets.all(12)),
-                                    onPressed: () =>
-                                        _navigateTo(_selectedAlert!),
+                                        padding: const EdgeInsets.all(12)),
+                                    onPressed: () => _navigateTo(_selectedAlert!),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    icon:
-                                        const Icon(Icons.check_circle),
-                                    label: const Text("RESOLVE"),
+                                    icon: const Icon(Icons.directions_run, color: Colors.black),
+                                    label: const Text("RESPOND", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.orange,
+                                        padding: const EdgeInsets.all(12)),
+                                    onPressed: () => _markResponding(_selectedAlertId!),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.check_circle, color: Colors.white),
+                                    label: const Text("RESOLVE", style: TextStyle(color: Colors.white)),
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.green,
-                                        padding:
-                                            const EdgeInsets.all(12)),
-                                    onPressed: () =>
-                                        _resolveAlert(_selectedAlertId!),
+                                        padding: const EdgeInsets.all(12)),
+                                    onPressed: () => _resolveAlert(_selectedAlertId!),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.person),
-                                    label: const Text("PROFILE"),
+                                    icon: const Icon(Icons.person, color: Colors.black),
+                                    label: const Text("PROFILE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                                     style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            Colors.orange[800],
-                                        padding:
-                                            const EdgeInsets.all(12)),
+                                        backgroundColor: Colors.orange[700],
+                                        padding: const EdgeInsets.all(12)),
                                     onPressed: () {
-                                      final profile =
-                                          _selectedAlert!['profile'];
+                                      final profile = _selectedAlert!['profile'];
                                       if (profile != null) {
-                                        _showProfile(
-                                            context,
-                                            Map<String, dynamic>.from(
-                                                profile));
+                                        _showProfile(context, Map<String, dynamic>.from(profile));
                                       } else {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(const SnackBar(
-                                                content: Text(
-                                                    "No profile available.")));
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text("No profile available.")));
                                       }
                                     },
                                   ),
@@ -3834,6 +3835,11 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                       _selectAlert(doc.id, data);
                                       _navigateTo(data);
                                     },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.directions_run,
+                                        color: Colors.orange),
+                                    onPressed: () => _markResponding(doc.id),
                                   ),
                                   IconButton(
                                     icon: const Icon(
