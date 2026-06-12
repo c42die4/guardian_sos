@@ -3757,7 +3757,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                               crossAxisAlignment:
                                   CrossAxisAlignment.start,
                               children: [
-                              children: [
                                 Icon(Icons.warning,
                                     color: color, size: 28),
                                 const SizedBox(width: 8),
