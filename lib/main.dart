@@ -3751,13 +3751,13 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                         ),
                         child: SingleChildScrollView(
                           child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
                               children: [
                                 Icon(Icons.warning,
                                     color: color, size: 28),
@@ -3851,9 +3851,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                               ],
                             ),
                           ],
-                        ),
-                      ),
-                    ),
                         ),
                       ),
                     ),
