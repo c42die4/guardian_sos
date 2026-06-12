@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -18,9 +18,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // NOTIFICATIONS
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 final FlutterLocalNotificationsPlugin _notifications =
     FlutterLocalNotificationsPlugin();
 
@@ -82,13 +82,13 @@ Future<void> showAlertNotification(String name, String location,
   final List<AndroidNotificationAction> actions = [
     const AndroidNotificationAction(
       'responding',
-      'ðï¸ RESPONDING',
+      '├░┬Å┬ì├»┬╕┬Å RESPONDING',
       showsUserInterface: true,
       cancelNotification: true,
     ),
     const AndroidNotificationAction(
       'remind_10',
-      'â° REMIND IN 10 MIN',
+      '├ó┬Å┬░ REMIND IN 10 MIN',
       showsUserInterface: false,
       cancelNotification: true,
     ),
@@ -118,15 +118,15 @@ Future<void> showAlertNotification(String name, String location,
   );
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // ESCALATING NOTIFICATION MANAGER
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // This class manages escalating reminders for officers about unresolved SOS alerts.
 // Schedule:
-//   0  - Å 60s      âÂ  remind every 10s
-//   60s  - Å 10min  âÂ  remind every 60s
-//   10min  - Å 60minâÂ  remind every 10min
-//   60min+       âÂ  remind every 60min
+//   0  - ├à 60s      ├ó├é┬á remind every 10s
+//   60s  - ├à 10min  ├ó├é┬á remind every 60s
+//   10min  - ├à 60min├ó├é┬á remind every 10min
+//   60min+       ├ó├é┬á remind every 60min
 class SOSEscalationManager {
   // Map of alertId -> timer for that alert
   static final Map<String, Timer> _timers = {};
@@ -249,9 +249,9 @@ class SOSEscalationManager {
   static Set<String> get trackedAlertIds => _timers.keys.toSet();
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // FOREGROUND TASK HANDLER
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(LocationTaskHandler());
@@ -331,9 +331,9 @@ class LocationTaskHandler extends TaskHandler {
   void onNotificationPressed() {}
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // FOREGROUND SERVICE HELPERS
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 void initForegroundTask() {
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
@@ -375,9 +375,9 @@ Future<void> stopLocationService() async {
   await FlutterForegroundTask.stopService();
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // COMPANY CONFIG MODEL
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class CompanyConfig {
   final String id;
   final String name;
@@ -440,9 +440,9 @@ class CompanyConfig {
 CompanyConfig? currentCompany;
 String currentRole = 'client';
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // HELPERS
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 Future<String> getDeviceId() async {
   final prefs = await SharedPreferences.getInstance();
   String? id = prefs.getString('device_id');
@@ -474,7 +474,7 @@ Future<void> saveRole(String role) async {
   await prefs.setString('device_role', role);
 }
 
-// ââ Radius helpers âââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó Radius helpers ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 const double kDefaultRadiusKm = 50.0;
 
 Future<double> getSavedRadius() async {
@@ -564,16 +564,14 @@ Future<void> sendWhatsAppAlert({
     if (!cleaned.startsWith(countryCode)) cleaned = countryCode + cleaned;
     final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
     final message = Uri.encodeComponent(
-        'ð¨ EMERGENCY ALERT ð¨\n\n'
+        '├░┬¿ EMERGENCY ALERT ├░┬¿\n\n'
         '$userName needs urgent help!\n\n'
         'Location: $mapsLink\n\n'
         'Please respond immediately or call emergency services.');
-    // Use wa.me link which opens WhatsApp and returns to app faster
     final url = 'https://wa.me/$cleaned?text=$message';
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-      // Brief delay then return focus to our app
       await Future.delayed(const Duration(milliseconds: 1500));
     }
   } catch (e) {
@@ -581,9 +579,9 @@ Future<void> sendWhatsAppAlert({
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // CONNECTIVITY
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 Future<bool> hasInternet() async {
   try {
     final socket = await Socket.connect('8.8.8.8', 53,
@@ -620,9 +618,9 @@ class SOSApp extends StatelessWidget {
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // APP ENTRY
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class AppEntry extends StatefulWidget {
   const AppEntry({super.key});
   @override
@@ -706,9 +704,9 @@ class _AppEntryState extends State<AppEntry> {
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // COMPANY REGISTRATION SCREEN
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class CompanyRegistrationScreen extends StatefulWidget {
   const CompanyRegistrationScreen({super.key});
   @override
@@ -899,9 +897,9 @@ class _CompanyRegistrationScreenState
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // TRIAL EXPIRED SCREEN
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class TrialExpiredScreen extends StatelessWidget {
   final CompanyConfig company;
   const TrialExpiredScreen({super.key, required this.company});
@@ -978,9 +976,9 @@ class TrialExpiredScreen extends StatelessWidget {
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // SUBSCRIPTION SUSPENDED SCREEN
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class SubscriptionSuspendedScreen extends StatelessWidget {
   final CompanyConfig company;
   const SubscriptionSuspendedScreen({super.key, required this.company});
@@ -1030,9 +1028,9 @@ class SubscriptionSuspendedScreen extends StatelessWidget {
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // APP SHELL
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class AppShell extends StatefulWidget {
   final CompanyConfig company;
   const AppShell({super.key, required this.company});
@@ -1288,9 +1286,9 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // PROFILE SCREEN
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class ProfileScreen extends StatefulWidget {
   final bool isFirstTime;
   const ProfileScreen({super.key, this.isFirstTime = false});
@@ -1618,9 +1616,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // SOS ACTIVE SCREEN
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class SOSActiveScreen extends StatefulWidget {
   final CompanyConfig company;
   final String alertId;
@@ -1915,9 +1913,9 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // SOS SCREEN
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class SOSScreen extends StatefulWidget {
   final CompanyConfig company;
   const SOSScreen({super.key, required this.company});
@@ -2318,7 +2316,7 @@ class _SOSScreenState extends State<SOSScreen>
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'â ï¸ No internet  -  SOS will not work. Enable WiFi or mobile data.',
+                  '├ó┬á├»┬╕┬Å No internet  -  SOS will not work. Enable WiFi or mobile data.',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -2341,7 +2339,7 @@ class _SOSScreenState extends State<SOSScreen>
                       labelText: "Your Name",
                       border: const OutlineInputBorder(),
                       helperText: _nameController.text.isEmpty
-                          ? "â ï¸ Please enter your name before sending SOS"
+                          ? "├ó┬á├»┬╕┬Å Please enter your name before sending SOS"
                           : "Also editable in Profile",
                     ),
                     onChanged: (val) async {
@@ -2556,9 +2554,9 @@ class _SOSScreenState extends State<SOSScreen>
     );
   }
 }
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // HUD SCREEN
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class HUDScreen extends StatefulWidget {
   final double targetLat;
   final double targetLng;
@@ -2920,7 +2918,7 @@ class _HUDScreenState extends State<HUDScreen>
               child: Text(
                 _hudMode
                     ? 'HUD MODE  -  Place phone on dashboard'
-                    : 'NORMAL MODE  -  Tap ð to flip for windscreen',
+                    : 'NORMAL MODE  -  Tap ├░┬ü to flip for windscreen',
                 style: const TextStyle(
                     color: Colors.white24,
                     fontSize: 11,
@@ -2948,9 +2946,9 @@ class _HUDScreenState extends State<HUDScreen>
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // OFFICER DASHBOARD
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class OfficerDashboard extends StatefulWidget {
   final CompanyConfig company;
   final double responseRadiusKm;
@@ -3117,7 +3115,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                     style:
                         TextStyle(color: Colors.white70, fontSize: 13)),
                 SizedBox(height: 12),
-                Text('1. Tap the â menu (top right)',
+                Text('1. Tap the ├ó menu (top right)',
                     style: TextStyle(color: Colors.white, fontSize: 14)),
                 SizedBox(height: 6),
                 Text('2. Tap "HUD mode"',
@@ -3146,9 +3144,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     }
   }
 
-  // âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
   // RESOLVE ALERT  -  logs officer name + timestamp
-  // âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
   Future<void> _markResponding(String id) async {
     try {
       final deviceId = await getDeviceId();
@@ -3223,7 +3221,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('â Alert resolved by $officerName'),
+            content: Text('├ó Alert resolved by $officerName'),
             backgroundColor: Colors.green[800],
           ),
         );
@@ -3575,12 +3573,10 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                   ),
                 ),
               ),
-            // Offline fallback - show when map tiles fail to load
+            // Offline GPS fallback
             if (!_tilesLoaded && alerts.isNotEmpty && _officerPosition != null)
               Positioned(
-                top: 80,
-                left: 16,
-                right: 16,
+                top: 80, left: 16, right: 16,
                 child: Card(
                   color: Colors.black.withOpacity(0.85),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3589,68 +3585,34 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.wifi_off, color: Colors.orange, size: 16),
-                            SizedBox(width: 6),
-                            Text('No map data - GPS mode',
-                                style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
+                        const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Icon(Icons.wifi_off, color: Colors.orange, size: 16),
+                          SizedBox(width: 6),
+                          Text('No map data - GPS mode', style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold)),
+                        ]),
                         const SizedBox(height: 12),
                         ...alerts.map((doc) {
                           final data = doc.data() as Map<String, dynamic>;
                           final alertLat = (data['lat'] as num?)?.toDouble() ?? 0;
                           final alertLng = (data['lng'] as num?)?.toDouble() ?? 0;
-                          final dist = distanceKm(
-                            _officerPosition!.latitude,
-                            _officerPosition!.longitude,
-                            alertLat, alertLng,
-                          );
-                          final bearing = Geolocator.bearingBetween(
-                            _officerPosition!.latitude,
-                            _officerPosition!.longitude,
-                            alertLat, alertLng,
-                          );
+                          final dist = distanceKm(_officerPosition!.latitude, _officerPosition!.longitude, alertLat, alertLng);
+                          final bearing = Geolocator.bearingBetween(_officerPosition!.latitude, _officerPosition!.longitude, alertLat, alertLng);
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              children: [
-                                Transform.rotate(
-                                  angle: bearing * (3.14159 / 180),
-                                  child: Icon(Icons.navigation, color: color, size: 32),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(data['userName'] ?? 'Rider',
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                      Text(dist < 1
-                                          ? '${(dist * 1000).toStringAsFixed(0)}m away'
-                                          : '${dist.toStringAsFixed(1)}km away',
-                                          style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
-                                      Text('${alertLat.toStringAsFixed(5)}, ${alertLng.toStringAsFixed(5)}',
-                                          style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                                    ],
-                                  ),
-                                ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  ),
-                                  onPressed: () {
-                                    final uri = Uri.parse(
-                                        'https://www.google.com/maps/dir/?api=1&destination=$alertLat,$alertLng&travelmode=driving');
-                                    launchUrl(uri, mode: LaunchMode.externalApplication);
-                                  },
-                                  child: const Text('GO', style: TextStyle(color: Colors.white, fontSize: 12)),
-                                ),
-                              ],
-                            ),
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(children: [
+                              Transform.rotate(angle: bearing * (3.14159 / 180), child: Icon(Icons.navigation, color: color, size: 28)),
+                              const SizedBox(width: 10),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(data['userName'] ?? 'Rider', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                Text(dist < 1 ? '${(dist*1000).toStringAsFixed(0)}m away' : '${dist.toStringAsFixed(1)}km away', style: const TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.bold)),
+                                Text('${alertLat.toStringAsFixed(5)}, ${alertLng.toStringAsFixed(5)}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                              ])),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+                                onPressed: () => launchUrl(Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$alertLat,$alertLng&travelmode=driving'), mode: LaunchMode.externalApplication),
+                                child: const Text('GO', style: TextStyle(color: Colors.white, fontSize: 12)),
+                              ),
+                            ]),
                           );
                         }).toList(),
                       ],
@@ -3706,7 +3668,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
-                              "🚨 ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''}  -  Tap to view list",
+                              "≡ƒÜ¿ ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''}  -  Tap to view list",
                               style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold),
@@ -3745,17 +3707,14 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                       color: Colors.grey[900],
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16)),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxHeight: MediaQuery.of(context).size.height * 0.45,
-                        ),
-                        child: SingleChildScrollView(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
                                 Icon(Icons.warning,
                                     color: color, size: 28),
