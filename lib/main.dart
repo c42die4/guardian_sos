@@ -219,10 +219,11 @@ class SOSEscalationManager {
     }
 
     // Use alertId hashCode as notification ID so each alert has its own notification
-    final notificationId = alertId.hashCode.abs() % 10000;
+    final helpType = data['helpType'] as String?;
+    final alertPrefix = helpType != null && helpType.isNotEmpty ? '[' + helpType + '] ' : '[SOS] ';
     await showAlertNotification(
-      name,
-      ' $lat, $lng    Started $ageLabel',
+      alertPrefix + name,
+      '$lat, $lng - Started $ageLabel',
       notificationId: notificationId,
       alertId: alertId,
     );
@@ -551,6 +552,8 @@ Future<void> sendWhatsAppAlert({
   required double lat,
   required double lng,
   String countryCode = '27',
+  String alertType = 'SOS',
+  String? riderPhone,
 }) async {
   try {
     final whatsappCheck = Uri.parse('whatsapp://send');
@@ -563,11 +566,21 @@ Future<void> sendWhatsAppAlert({
     if (cleaned.startsWith('0')) cleaned = countryCode + cleaned.substring(1);
     if (!cleaned.startsWith(countryCode)) cleaned = countryCode + cleaned;
     final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
+    String alertTitle;
+    switch (alertType) {
+      case 'CRASH': alertTitle = 'CRASH DETECTED - $userName may be injured!'; break;
+      case 'LOST': alertTitle = 'RIDER LOST - $userName needs directions'; break;
+      case 'FUEL': alertTitle = 'FUEL REQUEST - $userName has run out of fuel'; break;
+      case 'BREAKDOWN': alertTitle = 'BREAKDOWN - $userName needs mechanical help'; break;
+      case 'MEDICAL': alertTitle = 'MEDICAL EMERGENCY - $userName needs medical help'; break;
+      default: alertTitle = 'EMERGENCY SOS - $userName needs urgent help!';
+    }
+    final phoneInfo = riderPhone != null && riderPhone.isNotEmpty
+        ? 'Call $userName: $riderPhone\n\n' : '';
     final message = Uri.encodeComponent(
-        'EMERGENCY ALERT\n\n'
-        '$userName needs urgent help!\n\n'
+        '$alertTitle\n\n'
         'Location: $mapsLink\n\n'
-        'Please respond immediately or call emergency services.');
+        '${phoneInfo}Please respond immediately or call emergency services.');
     final url = 'https://wa.me/$cleaned?text=$message';
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -2062,9 +2075,11 @@ class _SOSScreenState extends State<SOSScreen>
   }
 
   Future<void> _sendWhatsAppAlerts(
-      Map<String, dynamic> profile, double lat, double lng) async {
+      Map<String, dynamic> profile, double lat, double lng,
+      {String alertType = 'SOS'}) async {
     final userName = profile['name'] ?? 'User';
     final countryCode = (profile['countryCode'] ?? '27').toString();
+    final riderPhone = (profile['contact1Phone'] ?? '').toString().trim();
     final contacts = [
       {'name': profile['wa1Name'], 'phone': profile['wa1Phone']},
       {'name': profile['wa2Name'], 'phone': profile['wa2Phone']},
@@ -2079,6 +2094,8 @@ class _SOSScreenState extends State<SOSScreen>
           lat: lat,
           lng: lng,
           countryCode: countryCode,
+          alertType: alertType,
+          riderPhone: riderPhone,
         );
       }
     }
@@ -2229,6 +2246,7 @@ class _SOSScreenState extends State<SOSScreen>
         'companyId': widget.company.id,
       });
       Vibration.vibrate(duration: 500);
+      await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude, alertType: type);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(label + ' alert sent - organiser notified!'),
