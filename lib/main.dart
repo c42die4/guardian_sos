@@ -564,7 +564,7 @@ Future<void> sendWhatsAppAlert({
     if (!cleaned.startsWith(countryCode)) cleaned = countryCode + cleaned;
     final mapsLink = 'https://www.google.com/maps?q=$lat,$lng';
     final message = Uri.encodeComponent(
-        '├░┬¿ EMERGENCY ALERT ├░┬¿\n\n'
+        'EMERGENCY ALERT\n\n'
         '$userName needs urgent help!\n\n'
         'Location: $mapsLink\n\n'
         'Please respond immediately or call emergency services.');
