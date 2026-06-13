@@ -3668,7 +3668,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
-                              "≡ƒÜ¿ ${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''}  -  Tap to view list",
+                              "${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''}  -  Tap to view list",
                               style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold),
