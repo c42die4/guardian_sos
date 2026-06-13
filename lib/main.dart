@@ -219,6 +219,7 @@ class SOSEscalationManager {
     }
 
     // Use alertId hashCode as notification ID so each alert has its own notification
+    final notificationId = alertId.hashCode.abs() % 10000;
     final helpType = data['helpType'] as String?;
     final alertPrefix = helpType != null && helpType.isNotEmpty ? '[' + helpType + '] ' : '[SOS] ';
     await showAlertNotification(
