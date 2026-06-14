@@ -908,6 +908,7 @@ class _CompanyRegistrationScreenState
             ],
           ),
         ),
+        ),
       ),
     );
   }
