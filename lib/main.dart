@@ -849,8 +849,10 @@ class _CompanyRegistrationScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
+          child: Padding(
           padding: const EdgeInsets.all(32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1336,6 +1338,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _wa2PhoneCtrl = TextEditingController();
   final _wa3NameCtrl = TextEditingController();
   final _wa3PhoneCtrl = TextEditingController();
+  final _mobilePhoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -1372,6 +1376,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _wa2PhoneCtrl.text = d['wa2Phone'] ?? '';
       _wa3NameCtrl.text = d['wa3Name'] ?? '';
       _wa3PhoneCtrl.text = d['wa3Phone'] ?? '';
+      _mobilePhoneCtrl.text = d['mobilePhone'] ?? '';
+      _emailCtrl.text = d['email'] ?? '';
     }
     setState(() => _loading = false);
   }
@@ -1402,6 +1408,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'wa2Phone': _wa2PhoneCtrl.text.trim(),
       'wa3Name': _wa3NameCtrl.text.trim(),
       'wa3Phone': _wa3PhoneCtrl.text.trim(),
+      'mobilePhone': _mobilePhoneCtrl.text.trim(),
+      'email': _emailCtrl.text.trim(),
       'companyId': currentCompany?.id ?? '',
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -1525,6 +1533,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _wa2PhoneCtrl.dispose();
     _wa3NameCtrl.dispose();
     _wa3PhoneCtrl.dispose();
+    _mobilePhoneCtrl.dispose();
+    _emailCtrl.dispose();
     super.dispose();
   }
 
@@ -1557,6 +1567,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _sectionHeader(
                       "Personal Information", Icons.person),
                   _field("Full Name", _nameCtrl, required: true),
+                  _field("Your Mobile Number", _mobilePhoneCtrl,
+                      keyboardType: TextInputType.phone),
+                  _field("Email Address", _emailCtrl,
+                      keyboardType: TextInputType.emailAddress),
                   _field("ID Number", _idCtrl,
                       keyboardType: TextInputType.number),
                   _field("Age", _ageCtrl,
@@ -2990,11 +3004,16 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   String? _selectedAlertId;
   bool _panelOpen = false;
   Position? _officerPosition;
+  bool _crashFlash = false;
+  Timer? _flashTimer;
 
   @override
   void initState() {
     super.initState();
     _getOfficerPosition();
+    _flashTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (mounted) setState(() => _crashFlash = !_crashFlash);
+    });
   }
 
   Future<void> _getOfficerPosition() async {
@@ -3024,6 +3043,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
 
   @override
   void dispose() {
+    _flashTimer?.cancel();
     // Stop all escalation timers when dashboard is closed
     SOSEscalationManager.stopAll();
     super.dispose();
@@ -3257,6 +3277,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
 
   IconData _alertIcon(String? helpType) {
     switch (helpType) {
+      case 'CRASH': return Icons.car_crash;
       case 'LOST': return Icons.explore_off;
       case 'FUEL': return Icons.local_gas_station;
       case 'BREAKDOWN': return Icons.build;
@@ -3315,6 +3336,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
             const Divider(height: 24),
             _profileSection("Personal Information", Icons.person, [
               _profileRow("Name", profile['name']),
+              _callableRow(context, "Mobile", profile['mobilePhone']),
+              _callableEmailRow(context, "Email", profile['email']),
               _profileRow("ID Number", profile['idNumber']),
               _profileRow("Age", profile['age']),
               _profileRow("Blood Type", profile['bloodType']),
@@ -3388,6 +3411,39 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                   style: const TextStyle(color: Colors.grey))),
           Expanded(
               child: Text(text, style: const TextStyle(fontSize: 15))),
+        ],
+      ),
+    );
+  }
+
+  Widget _callableEmailRow(
+      BuildContext context, String label, dynamic value) {
+    final text = (value ?? '').toString().trim();
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+              width: 110,
+              child: Text(label,
+                  style: const TextStyle(color: Colors.grey))),
+          Expanded(
+            child: GestureDetector(
+              onTap: () async {
+                final uri = Uri(scheme: 'mailto', path: text);
+                if (await canLaunchUrl(uri)) await launchUrl(uri);
+              },
+              child: Text(
+                text,
+                style: const TextStyle(
+                    fontSize: 15,
+                    color: Colors.lightBlue,
+                    decoration: TextDecoration.underline),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -3538,11 +3594,16 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                         onTap: () => _selectAlert(doc.id, data),
                         child: Column(
                           children: [
-                            Icon(Icons.warning,
+                            Icon(
+                                isSelected
+                                    ? Icons.warning
+                                    : _alertIcon(data['helpType'] as String?),
                                 color: isSelected
                                     ? Colors.orange
-                                    : color,
-                                size: isSelected ? 48 : 40),
+                                    : (data['helpType'] == 'CRASH'
+                                        ? (_crashFlash ? Colors.redAccent : Colors.white)
+                                        : _alertColor(data['helpType'] as String?, color)),
+                                size: data['helpType'] == 'CRASH' ? 44 : (isSelected ? 48 : 40)),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 4, vertical: 2),
