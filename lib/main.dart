@@ -36,8 +36,17 @@ void _onNotificationResponse(NotificationResponse response) {
   _handleNotificationAction(response.actionId, response.payload);
 }
 
+String? _pendingCallNumber;
+
 void _handleNotificationAction(String? actionId, String? alertId) {
   if (actionId == null || alertId == null) return;
+  if (actionId != null && actionId.startsWith('call_')) {
+    final number = actionId.substring(5);
+    // Launch dialer — needs to be handled in UI context
+    // Store for AppShell to pick up
+    _pendingCallNumber = number;
+    return;
+  }
   if (actionId == 'responding') {
     // Mark officer as responding in Firebase
     FirebaseFirestore.instance.collection('alerts').doc(alertId).update({
@@ -78,17 +87,24 @@ Future<void> initNotifications() async {
 }
 
 Future<void> showAlertNotification(String name, String location,
-    {int notificationId = 0, String? alertId}) async {
+    {int notificationId = 0, String? alertId, String? phone}) async {
   final List<AndroidNotificationAction> actions = [
+    if (phone != null && phone.isNotEmpty)
+      AndroidNotificationAction(
+        'call_$phone',
+        'CALL RIDER',
+        showsUserInterface: true,
+        cancelNotification: false,
+      ),
     const AndroidNotificationAction(
       'responding',
-      '├░┬Å┬ì├»┬╕┬Å RESPONDING',
+      'RESPONDING',
       showsUserInterface: true,
       cancelNotification: true,
     ),
     const AndroidNotificationAction(
       'remind_10',
-      '├ó┬Å┬░ REMIND IN 10 MIN',
+      'REMIND IN 10 MIN',
       showsUserInterface: false,
       cancelNotification: true,
     ),
@@ -222,11 +238,14 @@ class SOSEscalationManager {
     final notificationId = alertId.hashCode.abs() % 10000;
     final helpType = data['helpType'] as String?;
     final alertPrefix = helpType != null && helpType.isNotEmpty ? '[' + helpType + '] ' : '[SOS] ';
+    final profile = data['profile'] as Map<String, dynamic>?;
+    final phone = profile?['mobilePhone'] as String? ?? '';
     await showAlertNotification(
       alertPrefix + name,
       '$lat, $lng - Started $ageLabel',
       notificationId: notificationId,
       alertId: alertId,
+      phone: phone,
     );
   }
 
@@ -2170,6 +2189,7 @@ class _SOSScreenState extends State<SOSScreen>
       DocumentReference doc =
           await FirebaseFirestore.instance.collection('alerts').add({
         'userName': profile['name'] ?? 'User',
+        'mobilePhone': profile['mobilePhone'] ?? '',
         'lat': pos.latitude,
         'lng': pos.longitude,
         'status': 'ACTIVE',
@@ -2252,6 +2272,7 @@ class _SOSScreenState extends State<SOSScreen>
       final profile = await _getProfileSnapshot();
       await FirebaseFirestore.instance.collection('alerts').add({
         'userName': profile['name'] ?? 'Rider',
+        'mobilePhone': profile['mobilePhone'] ?? '',
         'lat': pos.latitude,
         'lng': pos.longitude,
         'status': 'ACTIVE',
