@@ -54,10 +54,7 @@ void _handleNotificationAction(String? actionId, String? alertId) {
       'respondingAt': FieldValue.serverTimestamp(),
     }).catchError((_) {});
     SOSEscalationManager.stopEscalation(alertId);
-  } else if (actionId == 'remind_10') {
-    // Snooze for 10 minutes  -  stop escalation and restart after delay
-    SOSEscalationManager.snoozeEscalation(alertId, const Duration(minutes: 10));
-  }
+}
 }
 
 Future<void> initNotifications() async {
@@ -102,12 +99,7 @@ Future<void> showAlertNotification(String name, String location,
       showsUserInterface: true,
       cancelNotification: true,
     ),
-    const AndroidNotificationAction(
-      'remind_10',
-      'REMIND IN 10 MIN',
-      showsUserInterface: false,
-      cancelNotification: true,
-    ),
+
   ];
 
   final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
@@ -2505,8 +2497,8 @@ class _SOSScreenState extends State<SOSScreen>
                       ],
                     ),
                   ),
-                  // Adventure mode help buttons
-                  if (widget.company.isAdventure) ...[
+                  // Help buttons — available for all company types
+                  ...[
                     const SizedBox(height: 20),
                     const Text('Need help?',
                         style: TextStyle(color: Colors.grey, fontSize: 13)),
@@ -3078,6 +3070,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       latestData?['userName'] ?? 'Unknown',
       '${latestData?['lat']?.toStringAsFixed(4) ?? ''}, '
           '${latestData?['lng']?.toStringAsFixed(4) ?? ''}',
+      phone: (latestData?['mobilePhone'] ?? '').toString(),
     );
     if (!_isMuted) {
       SystemSound.play(SystemSoundType.alert);
@@ -3850,6 +3843,35 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                   const TextStyle(color: Colors.grey),
                             ),
                             const SizedBox(height: 12),
+                            Builder(builder: (context) {
+                              final phone = (_selectedAlert!['mobilePhone'] ?? '').toString().trim();
+                              if (phone.isEmpty) return const SizedBox.shrink();
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.phone, color: Colors.white),
+                                    label: Text(
+                                      'CALL RIDER  —  $phone',
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green[700],
+                                        padding: const EdgeInsets.all(14)),
+                                    onPressed: () async {
+                                      final uri = Uri(scheme: 'tel', path: phone);
+                                      if (await canLaunchUrl(uri)) {
+                                        await launchUrl(uri);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              );
+                            }),
                             Row(
                               children: [
                                 Expanded(
@@ -3897,9 +3919,18 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                         backgroundColor: Colors.orange[700],
                                         padding: const EdgeInsets.all(12)),
                                     onPressed: () {
-                                      final profile = _selectedAlert!['profile'];
-                                      if (profile != null) {
-                                        _showProfile(context, Map<String, dynamic>.from(profile));
+                                      final rawProfile = _selectedAlert!['profile'];
+                                      if (rawProfile != null) {
+                                        // Merge top-level alert fields into profile so
+                                        // mobilePhone is available even on older alerts
+                                        final merged = Map<String, dynamic>.from(rawProfile);
+                                        if ((merged['mobilePhone'] ?? '').toString().isEmpty) {
+                                          merged['mobilePhone'] = (_selectedAlert!['mobilePhone'] ?? '').toString();
+                                        }
+                                        if ((merged['email'] ?? '').toString().isEmpty) {
+                                          merged['email'] = (_selectedAlert!['email'] ?? '').toString();
+                                        }
+                                        _showProfile(context, merged);
                                       } else {
                                         ScaffoldMessenger.of(context).showSnackBar(
                                             const SnackBar(content: Text("No profile available.")));
