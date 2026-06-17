@@ -4,6 +4,9 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html show window;
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -666,7 +669,21 @@ class _AppEntryState extends State<AppEntry> {
 
   Future<void> _initialize() async {
     try {
-      final companyId = await getSavedCompanyId();
+      String? companyId = await getSavedCompanyId();
+
+      // On web, fall back to localStorage if SharedPreferences is empty
+      if (companyId == null && kIsWeb) {
+        try {
+          final webCompanyId = html.window.localStorage['guardian_sos_company_id'];
+          final webRole = html.window.localStorage['guardian_sos_role'];
+          if (webCompanyId != null && webCompanyId.isNotEmpty) {
+            companyId = webCompanyId;
+            await saveCompanyId(webCompanyId);
+            if (webRole != null) await saveRole(webRole);
+          }
+        } catch (_) {}
+      }
+
       if (companyId == null) {
         setState(() => _loading = false);
         return;
@@ -840,6 +857,13 @@ class _CompanyRegistrationScreenState
       await saveCompanyData(company);
       currentCompany = company;
       currentRole = role;
+
+      if (kIsWeb) {
+        try {
+          html.window.localStorage['guardian_sos_company_id'] = companyDoc.id;
+          html.window.localStorage['guardian_sos_role'] = role;
+        } catch (_) {}
+      }
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -1081,6 +1105,7 @@ class _AppShellState extends State<AppShell> {
     _requestPermissions();
     _loadRadius();
     _stopOrphanedService();
+
   }
 
   Future<void> _stopOrphanedService() async {
@@ -1124,6 +1149,17 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _checkProfile() async {
+    // On web, officers skip profile setup and go straight to map
+    if (kIsWeb) {
+      final savedRole = await getSavedRole();
+      if (savedRole == 'officer') {
+        setState(() {
+          _checkingProfile = false;
+          isOfficerMode = true;
+        });
+        return;
+      }
+    }
     final id = await getDeviceId();
     final doc = await FirebaseFirestore.instance
         .collection('profiles')
