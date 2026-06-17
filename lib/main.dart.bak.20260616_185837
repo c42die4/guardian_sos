@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -622,9 +621,7 @@ Future<bool> hasInternet() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    await Firebase.initializeApp();
   } catch (e) {
     debugPrint("Firebase Init Error: $e");
   }
@@ -2500,8 +2497,8 @@ class _SOSScreenState extends State<SOSScreen>
                       ],
                     ),
                   ),
-                  // Help buttons — available for all company types
-                  ...[
+                  // Adventure mode help buttons
+                  if (widget.company.isAdventure) ...[
                     const SizedBox(height: 20),
                     const Text('Need help?',
                         style: TextStyle(color: Colors.grey, fontSize: 13)),
