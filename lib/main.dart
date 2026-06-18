@@ -5,8 +5,7 @@ import 'dart:typed_data';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html show window;
+
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -672,17 +671,8 @@ class _AppEntryState extends State<AppEntry> {
       String? companyId = await getSavedCompanyId();
 
       // On web, fall back to localStorage if SharedPreferences is empty
-      if (companyId == null && kIsWeb) {
-        try {
-          final webCompanyId = html.window.localStorage['guardian_sos_company_id'];
-          final webRole = html.window.localStorage['guardian_sos_role'];
-          if (webCompanyId != null && webCompanyId.isNotEmpty) {
-            companyId = webCompanyId;
-            await saveCompanyId(webCompanyId);
-            if (webRole != null) await saveRole(webRole);
-          }
-        } catch (_) {}
-      }
+      // On web, SharedPreferences already uses localStorage internally
+      // so no extra handling needed here
 
       if (companyId == null) {
         setState(() => _loading = false);
@@ -857,13 +847,6 @@ class _CompanyRegistrationScreenState
       await saveCompanyData(company);
       currentCompany = company;
       currentRole = role;
-
-      if (kIsWeb) {
-        try {
-          html.window.localStorage['guardian_sos_company_id'] = companyDoc.id;
-          html.window.localStorage['guardian_sos_role'] = role;
-        } catch (_) {}
-      }
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -1097,6 +1080,9 @@ class _AppShellState extends State<AppShell> {
   bool isOfficerMode = false;
   bool _checkingProfile = true;
   double _radiusKm = kDefaultRadiusKm;
+  bool _toggleFlash = false;
+  Timer? _toggleFlashTimer;
+  int _activeAlertCount = 0;
 
   @override
   void initState() {
@@ -1105,6 +1091,8 @@ class _AppShellState extends State<AppShell> {
     _requestPermissions();
     _loadRadius();
     _stopOrphanedService();
+    _startToggleFlashTimer();
+    _listenForAlerts();
 
   }
 
@@ -1131,6 +1119,35 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+
+  void _startToggleFlashTimer() {
+    _toggleFlashTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
+      if (mounted && !isOfficerMode && _activeAlertCount > 0) {
+        setState(() => _toggleFlash = !_toggleFlash);
+      } else if (mounted && _toggleFlash) {
+        setState(() => _toggleFlash = false);
+      }
+    });
+  }
+
+  void _listenForAlerts() {
+    FirebaseFirestore.instance
+        .collection('alerts')
+        .where('status', isEqualTo: 'ACTIVE')
+        .where('companyId', isEqualTo: widget.company.id)
+        .snapshots()
+        .listen((snap) {
+      if (mounted) setState(() => _activeAlertCount = snap.docs.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _toggleFlashTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Future<void> _loadRadius() async {
     final r = await getSavedRadius();
     if (mounted) setState(() => _radiusKm = r);
@@ -1331,13 +1348,25 @@ class _AppShellState extends State<AppShell> {
                   tooltip: 'Response Radius',
                   onPressed: () => _showRadiusDialog(),
                 ),
-              Switch(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: (!isOfficerMode && _activeAlertCount > 0 && _toggleFlash)
+                      ? [BoxShadow(color: Colors.orange.withOpacity(0.8), blurRadius: 12, spreadRadius: 2)]
+                      : [],
+                ),
+                child: Switch(
                   value: isOfficerMode,
                   activeThumbColor: Colors.blueAccent,
+                  inactiveThumbColor: (!isOfficerMode && _activeAlertCount > 0 && _toggleFlash)
+                      ? Colors.orange
+                      : null,
                   onChanged: (v) {
                     if (!v) SOSEscalationManager.stopAll();
                     setState(() => isOfficerMode = v);
                   }),
+              ),
               const Icon(Icons.security),
               const SizedBox(width: 10),
             ],
@@ -1975,11 +2004,12 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.cancel),
+                  icon: const Icon(Icons.cancel, color: Colors.white),
                   label: const Text("CANCEL SOS",
-                      style: TextStyle(fontSize: 15)),
+                      style: TextStyle(fontSize: 15, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange[800],
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.all(14)),
                   onPressed: _cancelSOS,
                 ),
