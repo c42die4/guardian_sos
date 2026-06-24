@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:math' as math;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -128,63 +127,6 @@ Future<void> showAlertNotification(String name, String location,
     details,
     payload: alertId,
   );
-}
-
-
-// ════════════════════════════════════════════════════════════════════
-// FAMILY TRACKING HELPERS
-
-String _generateTrackingToken() {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  final rand = math.Random.secure();
-  return List.generate(12, (_) => chars[rand.nextInt(chars.length)]).join();
-}
-
-Future<String> _getOrCreateTrackingToken(String deviceId, String companyId, String riderName) async {
-  final doc = await FirebaseFirestore.instance
-      .collection('tracking')
-      .where('deviceId', isEqualTo: deviceId)
-      .where('active', isEqualTo: true)
-      .limit(1)
-      .get();
-  if (doc.docs.isNotEmpty) {
-    return doc.docs.first.id;
-  }
-  final token = _generateTrackingToken();
-  await FirebaseFirestore.instance.collection('tracking').doc(token).set({
-    'deviceId': deviceId,
-    'companyId': companyId,
-    'riderName': riderName,
-    'status': 'IDLE',
-    'lat': 0.0,
-    'lng': 0.0,
-    'lastSeen': FieldValue.serverTimestamp(),
-    'active': true,
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-  return token;
-}
-
-Future<void> _updateTrackingStatus(String deviceId, String status, {double? lat, double? lng}) async {
-  try {
-    final doc = await FirebaseFirestore.instance
-        .collection('tracking')
-        .where('deviceId', isEqualTo: deviceId)
-        .where('active', isEqualTo: true)
-        .limit(1)
-        .get();
-    if (doc.docs.isNotEmpty) {
-      final update = <String, dynamic>{
-        'status': status,
-        'lastSeen': FieldValue.serverTimestamp(),
-      };
-      if (lat != null) update['lat'] = lat;
-      if (lng != null) update['lng'] = lng;
-      await doc.docs.first.reference.update(update);
-    }
-  } catch (e) {
-    debugPrint('Tracking update error: $e');
-  }
 }
 
 // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
@@ -905,16 +847,6 @@ class _CompanyRegistrationScreenState
       await saveCompanyData(company);
       currentCompany = company;
       currentRole = role;
-
-      // Generate tracking token for riders
-      if (role == 'client') {
-        try {
-          final name = 'Rider';
-          await _getOrCreateTrackingToken(deviceId, companyDoc.id, name);
-        } catch (e) {
-          debugPrint('Tracking token error: $e');
-        }
-      }
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -2114,10 +2046,6 @@ class _SOSScreenState extends State<SOSScreen>
   double _lastLng = 0;
   bool _hasInternet = true;
   Timer? _connectivityTimer;
-  // Live tracking
-  bool _isSharing = false;
-  Timer? _shareTimer;
-  int _shareIntervalMinutes = 2;
 
   // Crash detection
   bool _crashDetectionEnabled = false;
@@ -2341,10 +2269,6 @@ class _SOSScreenState extends State<SOSScreen>
 
       if (mounted) setState(() => _sosActive = true);
 
-      // Update family tracking status
-      final deviceId = await getDeviceId();
-      await _updateTrackingStatus(deviceId, 'SOS', lat: pos.latitude, lng: pos.longitude);
-
       await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude);
     } catch (e) {
       debugPrint("SOS Error: $e");
@@ -2431,51 +2355,10 @@ class _SOSScreenState extends State<SOSScreen>
           SnackBar(content: Text('Failed to send alert: ' + e.toString())));
     }
   }
-  Future<void> _startSharing() async {
-    final deviceId = await getDeviceId();
-    final name = _nameController.text.isNotEmpty ? _nameController.text : 'Rider';
-    await _getOrCreateTrackingToken(deviceId, widget.company.id, name);
-    // Get immediate position on start
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      await _updateTrackingStatus(deviceId, 'RIDING', lat: pos.latitude, lng: pos.longitude);
-    } catch (e) {
-      await _updateTrackingStatus(deviceId, 'RIDING');
-    }
-    setState(() => _isSharing = true);
-    _shareTimer = Timer.periodic(
-      Duration(minutes: _shareIntervalMinutes),
-      (_) async {
-        if (!_isSharing || _sosActive) return;
-        try {
-          final pos = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.high,
-          );
-          final id = await getDeviceId();
-          await _updateTrackingStatus(id, 'RIDING', lat: pos.latitude, lng: pos.longitude);
-        } catch (e) {
-          debugPrint('Share location error: \$e');
-        }
-      },
-    );
-  }
-
-  Future<void> _stopSharing() async {
-    _shareTimer?.cancel();
-    _shareTimer = null;
-    setState(() => _isSharing = false);
-    final deviceId = await getDeviceId();
-    await _updateTrackingStatus(deviceId, 'IDLE');
-  }
-
   void _onSOSCancelled() {
     setState(() => _sosActive = false);
     // Always stop service when SOS ends
     stopLocationService();
-    // Update family tracking
-    getDeviceId().then((id) => _updateTrackingStatus(id, 'IDLE'));
     if (_crashDetectionEnabled) {
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted && _crashDetectionEnabled) _startCrashDetection();
@@ -2507,7 +2390,6 @@ class _SOSScreenState extends State<SOSScreen>
     _connectivityTimer?.cancel();
     _accelSubscription?.cancel();
     _crashCountdownTimer?.cancel();
-    _shareTimer?.cancel();
     _controller.dispose();
     _nameController.dispose();
     // Stop foreground service if no active SOS when screen is disposed
@@ -2585,103 +2467,7 @@ class _SOSScreenState extends State<SOSScreen>
                               SetOptions(merge: true));
                     },
                   ),
-                  const SizedBox(height: 12),
-                  // Live tracking controls
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: _isSharing ? Colors.green.withOpacity(0.5) : Colors.white12),
-                      borderRadius: BorderRadius.circular(12),
-                      color: _isSharing ? Colors.green.withOpacity(0.08) : Colors.transparent,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                icon: Icon(_isSharing ? Icons.location_off : Icons.share_location, size: 18),
-                                label: Text(_isSharing ? 'Stop sharing location' : 'Share live location',
-                                    style: const TextStyle(fontSize: 13)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _isSharing ? Colors.red[800] : Colors.green[800],
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                ),
-                                onPressed: _isSharing ? _stopSharing : _startSharing,
-                              ),
-                            ),
-                            if (_isSharing) ...[
-                              const SizedBox(width: 8),
-                              FutureBuilder<String>(
-                                future: getDeviceId().then((id) => _getOrCreateTrackingToken(
-                                  id, widget.company.id,
-                                  _nameController.text.isNotEmpty ? _nameController.text : 'Rider',
-                                )),
-                                builder: (context, snap) {
-                                  if (!snap.hasData) return const SizedBox.shrink();
-                                  final link = 'https://sos.cyberwarriors.co.za/track/?t=\${snap.data}';
-                                  return IconButton(
-                                    icon: const Icon(Icons.share, color: Colors.white70),
-                                    tooltip: 'Share link',
-                                    onPressed: () async {
-                                      final msg = Uri.encodeComponent('Track my ride live: \$link');
-                                      final wa = Uri.parse('https://wa.me/?text=\$msg');
-                                      if (await canLaunchUrl(wa)) await launchUrl(wa, mode: LaunchMode.externalApplication);
-                                    },
-                                  );
-                                },
-                              ),
-                            ],
-                          ],
-                        ),
-                        if (!_isSharing) ...[
-                          const SizedBox(height: 8),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                const Text('Update: ', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                                const SizedBox(width: 6),
-                                ...[
-                                  ['🔴 30s', 0],
-                                  ['🟡 2min', 2],
-                                  ['🟢 5min', 5],
-                                  ['🔵 15min', 15],
-                                ].map((opt) => Padding(
-                                  padding: const EdgeInsets.only(right: 6),
-                                  child: GestureDetector(
-                                    onTap: () => setState(() => _shareIntervalMinutes = opt[1] as int),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: _shareIntervalMinutes == opt[1]
-                                            ? Colors.white24 : Colors.transparent,
-                                        border: Border.all(color: Colors.white24),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(opt[0] as String,
-                                          style: const TextStyle(fontSize: 11, color: Colors.white70)),
-                                    ),
-                                  ),
-                                )).toList(),
-                              ],
-                            ),
-                          ),
-                        ],
-                        if (_isSharing)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              '🟢 Family can see your location · Updates every ' + (_shareIntervalMinutes == 0 ? '30s' : '\$_shareIntervalMinutes min'),
-                              style: const TextStyle(fontSize: 11, color: Colors.green),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: keyboardOpen ? 12 : 40),
+                  SizedBox(height: keyboardOpen ? 20 : 60),
                   GestureDetector(
                     onLongPressStart: (_) => _startHolding(),
                     onLongPressEnd: (_) => _stopHolding(),

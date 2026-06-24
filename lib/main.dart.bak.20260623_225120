@@ -2435,15 +2435,7 @@ class _SOSScreenState extends State<SOSScreen>
     final deviceId = await getDeviceId();
     final name = _nameController.text.isNotEmpty ? _nameController.text : 'Rider';
     await _getOrCreateTrackingToken(deviceId, widget.company.id, name);
-    // Get immediate position on start
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      await _updateTrackingStatus(deviceId, 'RIDING', lat: pos.latitude, lng: pos.longitude);
-    } catch (e) {
-      await _updateTrackingStatus(deviceId, 'RIDING');
-    }
+    await _updateTrackingStatus(deviceId, 'RIDING');
     setState(() => _isSharing = true);
     _shareTimer = Timer.periodic(
       Duration(minutes: _shareIntervalMinutes),
@@ -2586,100 +2578,35 @@ class _SOSScreenState extends State<SOSScreen>
                     },
                   ),
                   const SizedBox(height: 12),
-                  // Live tracking controls
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: _isSharing ? Colors.green.withOpacity(0.5) : Colors.white12),
-                      borderRadius: BorderRadius.circular(12),
-                      color: _isSharing ? Colors.green.withOpacity(0.08) : Colors.transparent,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                icon: Icon(_isSharing ? Icons.location_off : Icons.share_location, size: 18),
-                                label: Text(_isSharing ? 'Stop sharing location' : 'Share live location',
-                                    style: const TextStyle(fontSize: 13)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _isSharing ? Colors.red[800] : Colors.green[800],
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                ),
-                                onPressed: _isSharing ? _stopSharing : _startSharing,
-                              ),
-                            ),
-                            if (_isSharing) ...[
-                              const SizedBox(width: 8),
-                              FutureBuilder<String>(
-                                future: getDeviceId().then((id) => _getOrCreateTrackingToken(
-                                  id, widget.company.id,
-                                  _nameController.text.isNotEmpty ? _nameController.text : 'Rider',
-                                )),
-                                builder: (context, snap) {
-                                  if (!snap.hasData) return const SizedBox.shrink();
-                                  final link = 'https://sos.cyberwarriors.co.za/track/?t=\${snap.data}';
-                                  return IconButton(
-                                    icon: const Icon(Icons.share, color: Colors.white70),
-                                    tooltip: 'Share link',
-                                    onPressed: () async {
-                                      final msg = Uri.encodeComponent('Track my ride live: \$link');
-                                      final wa = Uri.parse('https://wa.me/?text=\$msg');
-                                      if (await canLaunchUrl(wa)) await launchUrl(wa, mode: LaunchMode.externalApplication);
-                                    },
-                                  );
-                                },
-                              ),
-                            ],
-                          ],
+                  // Share my location button
+                  FutureBuilder<String>(
+                    future: getDeviceId().then((id) => _getOrCreateTrackingToken(
+                      id,
+                      widget.company.id,
+                      _nameController.text.isNotEmpty ? _nameController.text : 'Rider',
+                    )),
+                    builder: (context, snap) {
+                      if (!snap.hasData) return const SizedBox.shrink();
+                      final token = snap.data!;
+                      final link = 'https://sos.cyberwarriors.co.za/track/?t=$token';
+                      return OutlinedButton.icon(
+                        icon: const Icon(Icons.share_location, size: 18),
+                        label: const Text('Share my location with family',
+                            style: TextStyle(fontSize: 13)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white70,
+                          side: const BorderSide(color: Colors.white24),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         ),
-                        if (!_isSharing) ...[
-                          const SizedBox(height: 8),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                const Text('Update: ', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                                const SizedBox(width: 6),
-                                ...[
-                                  ['🔴 30s', 0],
-                                  ['🟡 2min', 2],
-                                  ['🟢 5min', 5],
-                                  ['🔵 15min', 15],
-                                ].map((opt) => Padding(
-                                  padding: const EdgeInsets.only(right: 6),
-                                  child: GestureDetector(
-                                    onTap: () => setState(() => _shareIntervalMinutes = opt[1] as int),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: _shareIntervalMinutes == opt[1]
-                                            ? Colors.white24 : Colors.transparent,
-                                        border: Border.all(color: Colors.white24),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(opt[0] as String,
-                                          style: const TextStyle(fontSize: 11, color: Colors.white70)),
-                                    ),
-                                  ),
-                                )).toList(),
-                              ],
-                            ),
-                          ),
-                        ],
-                        if (_isSharing)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              '🟢 Family can see your location · Updates every ' + (_shareIntervalMinutes == 0 ? '30s' : '\$_shareIntervalMinutes min'),
-                              style: const TextStyle(fontSize: 11, color: Colors.green),
-                            ),
-                          ),
-                      ],
-                    ),
+                        onPressed: () async {
+                          final msg = Uri.encodeComponent(
+                            'Track my ride live: $link'
+                          );
+                          final wa = Uri.parse('https://wa.me/?text=$msg');
+                          if (await canLaunchUrl(wa)) await launchUrl(wa, mode: LaunchMode.externalApplication);
+                        },
+                      );
+                    },
                   ),
                   SizedBox(height: keyboardOpen ? 12 : 40),
                   GestureDetector(

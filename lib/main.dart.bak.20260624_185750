@@ -2435,15 +2435,7 @@ class _SOSScreenState extends State<SOSScreen>
     final deviceId = await getDeviceId();
     final name = _nameController.text.isNotEmpty ? _nameController.text : 'Rider';
     await _getOrCreateTrackingToken(deviceId, widget.company.id, name);
-    // Get immediate position on start
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      await _updateTrackingStatus(deviceId, 'RIDING', lat: pos.latitude, lng: pos.longitude);
-    } catch (e) {
-      await _updateTrackingStatus(deviceId, 'RIDING');
-    }
+    await _updateTrackingStatus(deviceId, 'RIDING');
     setState(() => _isSharing = true);
     _shareTimer = Timer.periodic(
       Duration(minutes: _shareIntervalMinutes),
@@ -2674,7 +2666,7 @@ class _SOSScreenState extends State<SOSScreen>
                           Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: Text(
-                              '🟢 Family can see your location · Updates every ' + (_shareIntervalMinutes == 0 ? '30s' : '\$_shareIntervalMinutes min'),
+                              '🟢 Family can see your location · Updates every \${_shareIntervalMinutes == 0 ? "30s" : "\${_shareIntervalMinutes}min"}',
                               style: const TextStyle(fontSize: 11, color: Colors.green),
                             ),
                           ),

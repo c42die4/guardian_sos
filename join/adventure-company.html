@@ -2,146 +2,200 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Guardian SOS — The Adventure Company</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',Arial,sans-serif;background:#0a0a0a;color:#fff;min-height:100vh}
-.hero{background:linear-gradient(180deg,#1a1a1a 0%,#0a0a0a 100%);border-bottom:2px solid #ff6600;padding:32px 20px 24px;text-align:center}
-.company-badge{display:inline-flex;align-items:center;gap:10px;background:#ff660018;border:1px solid #ff660044;border-radius:30px;padding:8px 18px;margin-bottom:20px}
-.company-dot{width:10px;height:10px;border-radius:50%;background:#ff6600}
-.company-name{font-size:13px;color:#ff6600;font-weight:600;letter-spacing:1px;text-transform:uppercase}
-.shield{width:64px;height:64px;margin:0 auto 16px;background:#ff6600;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:32px}
-h1{font-size:28px;font-weight:700;margin-bottom:8px;letter-spacing:-0.5px}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0a0a0a;color:#fff;max-width:480px;margin:0 auto}
+
+/* Hero image placeholder */
+.hero-img{width:100%;height:220px;background:#1a1a1a;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px}
+.hero-img svg{opacity:0.15}
+.hero-img-label{font-size:12px;color:#666;letter-spacing:1px;text-transform:uppercase;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#000a;padding:4px 12px;border-radius:20px;white-space:nowrap}
+.hero-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(180deg,#ff660022 0%,#0a0a0a88 70%,#0a0a0a 100%)}
+
+/* Header */
+.header{padding:20px 16px 16px;text-align:center;margin-top:-40px;position:relative;z-index:2}
+.company-badge{display:inline-flex;align-items:center;gap:8px;background:#ff660018;border:1px solid #ff660055;border-radius:30px;padding:6px 14px;margin-bottom:14px}
+.company-dot{width:8px;height:8px;border-radius:50%;background:#ff6600;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.company-name{font-size:12px;color:#ff6600;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+h1{font-size:26px;font-weight:800;letter-spacing:-0.5px;margin-bottom:6px}
 h1 span{color:#ff6600}
-.tagline{font-size:15px;color:#888;margin-bottom:0}
-.tyre-divider{text-align:center;padding:12px 0;color:#333;font-size:20px;letter-spacing:4px}
-.section{padding:24px 20px;max-width:480px;margin:0 auto}
-.steps{display:flex;flex-direction:column;gap:16px;margin-bottom:28px}
-.step{display:flex;gap:14px;align-items:flex-start}
-.step-num{width:36px;height:36px;border-radius:50%;background:#ff6600;color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tagline{font-size:14px;color:#999;line-height:1.5;margin-bottom:0;font-style:italic}
+
+/* Divider */
+.divider{height:1px;background:linear-gradient(90deg,transparent,#ff660044,transparent);margin:20px 0}
+
+/* Steps */
+.steps-section{padding:0 16px 20px}
+.steps-title{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;text-align:center}
+.step{display:flex;gap:12px;align-items:flex-start;margin-bottom:16px}
+.step:last-child{margin-bottom:0}
+.step-num{width:32px;height:32px;border-radius:50%;background:#ff6600;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
 .step-text h3{font-size:14px;font-weight:600;margin-bottom:3px}
 .step-text p{font-size:13px;color:#888;line-height:1.5}
-.download-btn{display:block;background:#ff6600;color:#fff;text-decoration:none;text-align:center;padding:16px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;margin-bottom:12px;transition:background 0.2s}
-.download-btn:hover{background:#dd5500}
-.download-btn span{display:block;font-size:11px;font-weight:400;opacity:0.8;margin-top:3px}
-.web-btn{display:block;background:transparent;color:#ff6600;text-decoration:none;text-align:center;padding:13px;border-radius:12px;font-size:14px;font-weight:600;border:1px solid #ff660066;margin-bottom:24px;transition:all 0.2s}
-.web-btn:hover{background:#ff660011}
-.code-section{background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:16px;margin-bottom:24px}
-.code-label{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
-.code-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.code-row:last-child{margin-bottom:0}
-.code-type{font-size:12px;color:#888}
-.code-val{font-family:monospace;font-size:15px;font-weight:700;color:#ff6600;background:#ff660011;padding:6px 12px;border-radius:8px;cursor:pointer;border:1px solid #ff660033}
-.code-val:hover{background:#ff660022}
-.features{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px}
-.feature{background:#1a1a1a;border:1px solid #222;border-radius:10px;padding:12px;text-align:center}
-.feature-icon{font-size:22px;margin-bottom:6px}
-.feature-text{font-size:11px;color:#888;line-height:1.4}
-.install-note{background:#ff660011;border:1px solid #ff660033;border-radius:10px;padding:12px 14px;font-size:12px;color:#ff9944;line-height:1.6;margin-bottom:24px}
-.footer{text-align:center;padding:20px;border-top:1px solid #1a1a1a;font-size:11px;color:#444}
+
+/* Download button */
+.cta-section{padding:0 16px 16px}
+.download-btn{display:flex;align-items:center;justify-content:center;gap:10px;background:#ff6600;color:#fff;text-decoration:none;padding:16px;border-radius:14px;font-size:16px;font-weight:700;margin-bottom:10px;-webkit-tap-highlight-color:transparent}
+.download-btn:active{background:#dd5500}
+.download-btn-sub{font-size:11px;font-weight:400;opacity:0.75;display:block;margin-top:2px}
+.install-note{background:#ff660011;border:1px solid #ff660033;border-radius:10px;padding:10px 14px;font-size:12px;color:#ff9944;line-height:1.5;margin-bottom:14px}
+
+/* Code */
+.code-card{background:#151515;border:1px solid #2a2a2a;border-radius:14px;padding:14px 16px;margin-bottom:14px}
+.code-card-label{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.code-row{display:flex;justify-content:space-between;align-items:center}
+.code-type{font-size:13px;color:#888}
+.code-val{font-family:monospace;font-size:16px;font-weight:700;color:#ff6600;background:#ff660011;padding:8px 14px;border-radius:10px;border:1px solid #ff660033;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background 0.15s}
+.code-val:active{background:#ff660033}
+.code-copied{font-size:11px;color:#44cc44;text-align:center;margin-top:8px;height:16px}
+
+/* Action image placeholder */
+.action-img{width:calc(100% - 32px);height:140px;background:#151515;border-radius:14px;margin:0 16px 16px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;border:1px solid #2a2a2a}
+.action-img svg{opacity:0.12}
+.action-img-label{font-size:11px;color:#555;letter-spacing:1px;text-transform:uppercase}
+
+/* Features */
+.features{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 16px}
+.feature{background:#151515;border:1px solid #222;border-radius:12px;padding:12px;text-align:center}
+.feature-icon{font-size:24px;margin-bottom:6px}
+.feature-text{font-size:11px;color:#777;line-height:1.4}
+
+/* Web link */
+.web-link{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 16px 16px;padding:13px;border-radius:12px;border:1px solid #ff660044;color:#ff6600;text-decoration:none;font-size:13px;font-weight:600;-webkit-tap-highlight-color:transparent}
+.web-link:active{background:#ff660011}
+
+/* Footer */
+.footer{text-align:center;padding:16px;border-top:1px solid #1a1a1a;font-size:11px;color:#444;line-height:1.8}
 .footer a{color:#ff6600;text-decoration:none}
-.copied{display:none;font-size:11px;color:#44cc44;text-align:center;margin-top:6px}
 </style>
 </head>
 <body>
 
-<div class="hero">
+<!-- Hero image placeholder -->
+<div class="hero-img">
+  <svg width="80" height="60" viewBox="0 0 80 60" fill="none">
+    <rect x="2" y="2" width="76" height="56" rx="4" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="25" cy="22" r="8" stroke="#fff" stroke-width="1.5"/>
+    <path d="M2 42 L20 28 L35 38 L52 20 L78 42" stroke="#fff" stroke-width="1.5" fill="none"/>
+  </svg>
+  <div class="hero-img-label">📷 Your hero photo here</div>
+  <div class="hero-overlay"></div>
+</div>
+
+<!-- Header -->
+<div class="header">
   <div class="company-badge">
     <div class="company-dot"></div>
     <div class="company-name">The Adventure Company</div>
   </div>
-  <div class="shield">🛡</div>
   <h1>Guardian <span>SOS</span></h1>
-  <p class="tagline">Real-time emergency response for adventure rides</p>
+  <p class="tagline">"If you have a dirtbike — we've got the fun."<br>Now with real-time safety on every ride.</p>
 </div>
 
-<div class="tyre-divider">⬡ ⬡ ⬡ ⬡ ⬡</div>
+<div class="divider"></div>
 
-<div class="section">
-
-  <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-text">
-        <h3>Download &amp; install the app</h3>
-        <p>Tap the button below. If Android says "unknown source" tap <strong>Install anyway</strong> — it's safe.</p>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-text">
-        <h3>Register with your code</h3>
-        <p>Open the app and enter the rider code below. Tap your code to copy it.</p>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-text">
-        <h3>Fill in your profile</h3>
-        <p>Add your mobile number and blood type. Your guide can call you directly if you need help.</p>
-      </div>
+<!-- Steps -->
+<div class="steps-section">
+  <div class="steps-title">Get set up in 3 steps</div>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <h3>Download &amp; install the app</h3>
+      <p>Tap the button below. If Android asks tap <strong>Install anyway</strong> — it's safe, just not on Play Store yet.</p>
     </div>
   </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <h3>Enter your rider code</h3>
+      <p>Open the app and enter the code below. Tap it to copy automatically.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <h3>Fill in your profile</h3>
+      <p>Add your mobile number and blood type so your guide can reach you directly in an emergency.</p>
+    </div>
+  </div>
+</div>
 
-  <a class="download-btn" href="https://github.com/c42die4/guardian_sos/releases/download/v1.0-adventure/app-adventure-release.apk">
-    📲 Download Adventure SOS
-    <span>Android APK · 56MB · Free</span>
+<!-- Download -->
+<div class="cta-section">
+  <a class="download-btn" href="https://sos.cyberwarriors.co.za/apk/adventure.apk">
+    <span style="font-size:22px">📲</span>
+    <span>Download Adventure SOS<span class="download-btn-sub">Android · 56MB · Free</span></span>
   </a>
+  <div class="install-note">⚠ When Android shows a warning, tap <strong>"Install anyway"</strong> — the app is safe.</div>
+</div>
 
-  <div class="install-note">
-    ⚠ Android only. When prompted tap <strong>"Install anyway"</strong> — the app is not yet on the Play Store but is completely safe.
-  </div>
-
-  <div class="code-section">
-    <div class="code-label">Registration codes — tap to copy</div>
+<!-- Code -->
+<div style="padding:0 16px">
+  <div class="code-card">
+    <div class="code-card-label">Your registration code — tap to copy</div>
     <div class="code-row">
-      <span class="code-type">Riders</span>
+      <span class="code-type">Rider code</span>
       <span class="code-val" onclick="copyCode('ADV-RIDER-2026')">ADV-RIDER-2026</span>
     </div>
-    <div class="code-row">
-      <span class="code-type">Guides only</span>
-      <span class="code-val" onclick="copyCode('ADV-GUIDE-2026')">ADV-GUIDE-2026</span>
-    </div>
-    <div class="copied" id="copied">✓ Copied!</div>
+    <div class="code-copied" id="copied"></div>
   </div>
-
-  <div class="features">
-    <div class="feature">
-      <div class="feature-icon">🗺</div>
-      <div class="feature-text">Live GPS map for your guide</div>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">🚨</div>
-      <div class="feature-text">SOS &amp; crash detection</div>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">⛽</div>
-      <div class="feature-text">Lost, Fuel, Breakdown, Medical alerts</div>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">📞</div>
-      <div class="feature-text">One-tap call to your guide</div>
-    </div>
-  </div>
-
-  <a class="web-btn" href="https://sos.cyberwarriors.co.za">
-    🖥 Guides — monitor from laptop or PC
-  </a>
-
 </div>
 
+<!-- Action image placeholder -->
+<div class="action-img">
+  <svg width="60" height="50" viewBox="0 0 60 50" fill="none">
+    <path d="M5 40 C10 20 20 15 30 25 C40 35 50 20 55 10" stroke="#fff" stroke-width="1.5" fill="none"/>
+    <circle cx="15" cy="32" r="5" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="45" cy="22" r="5" stroke="#fff" stroke-width="1.5"/>
+  </svg>
+  <div class="action-img-label">📷 Your ride photo here</div>
+</div>
+
+<!-- Features -->
+<div class="features">
+  <div class="feature">
+    <div class="feature-icon">🗺</div>
+    <div class="feature-text">Glen sees you live on a map</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">🚨</div>
+    <div class="feature-text">SOS &amp; automatic crash detection</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">⛽</div>
+    <div class="feature-text">Lost · Fuel · Breakdown · Medical</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">📞</div>
+    <div class="feature-text">Glen calls you directly — one tap</div>
+  </div>
+</div>
+
+<!-- Web link for guides -->
+<a class="web-link" href="https://sos.cyberwarriors.co.za">
+  🖥 Guides — monitor from any browser
+</a>
+
+<!-- Footer -->
 <div class="footer">
-  Powered by <a href="https://cyberwarriors.co.za">Cyber Warriors CC</a> · Guardian SOS<br>
-  Need help? WhatsApp <a href="https://wa.me/27835065924">083 506 5924</a>
+  <a href="https://adventurecompany.co.za">adventurecompany.co.za</a> · 
+  <a href="https://www.facebook.com/theadvco">Facebook</a><br>
+  Safety powered by <a href="https://cyberwarriors.co.za">Cyber Warriors CC</a><br>
+  Need help? <a href="https://wa.me/27835065924">WhatsApp 083 506 5924</a>
 </div>
 
 <script>
 function copyCode(code) {
   navigator.clipboard.writeText(code).then(() => {
     const el = document.getElementById('copied');
-    el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 2000);
+    el.textContent = '✓ Copied to clipboard!';
+    setTimeout(() => el.textContent = '', 2500);
+  }).catch(() => {
+    const el = document.getElementById('copied');
+    el.textContent = code;
   });
 }
 </script>
