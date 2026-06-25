@@ -2626,9 +2626,14 @@ class _SOSScreenState extends State<SOSScreen>
                                     icon: const Icon(Icons.share, color: Colors.white70),
                                     tooltip: 'Share link',
                                     onPressed: () async {
-                                      final msg = Uri.encodeComponent('Track my ride live: \$link');
-                                      final wa = Uri.parse('https://wa.me/?text=\$msg');
-                                      if (await canLaunchUrl(wa)) await launchUrl(wa, mode: LaunchMode.externalApplication);
+                                      final trackLink = 'https://sos.cyberwarriors.co.za/track/?t=${snap.data}';
+                                      final msg = Uri.encodeComponent('Track my ride live: $trackLink');
+                                      final wa = Uri.parse('https://wa.me/?text=$msg');
+                                      if (await canLaunchUrl(wa)) {
+                                        await launchUrl(wa, mode: LaunchMode.externalApplication);
+                                      } else {
+                                        await launchUrl(wa, mode: LaunchMode.platformDefault);
+                                      }
                                     },
                                   );
                                 },
