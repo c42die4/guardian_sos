@@ -2588,7 +2588,7 @@ class _SOSScreenState extends State<SOSScreen>
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '├ó┬á├»┬╕┬Å No internet  -  SOS will not work. Enable WiFi or mobile data.',
+                  'No internet — SOS will not work. Enable WiFi or mobile data.',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -2611,7 +2611,7 @@ class _SOSScreenState extends State<SOSScreen>
                       labelText: "Your Name",
                       border: const OutlineInputBorder(),
                       helperText: _nameController.text.isEmpty
-                          ? "├ó┬á├»┬╕┬Å Please enter your name before sending SOS"
+                          ? "Please enter your name before sending SOS"
                           : "Also editable in Profile",
                     ),
                     onChanged: (val) async {
