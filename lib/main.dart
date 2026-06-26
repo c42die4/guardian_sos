@@ -2118,6 +2118,9 @@ class _SOSScreenState extends State<SOSScreen>
   bool _isSharing = false;
   Timer? _shareTimer;
   int _shareIntervalMinutes = 2;
+  bool _shareFlash = false;
+  Timer? _shareFlashTimer;
+  bool _hasShared = false;
 
   // Crash detection
   bool _crashDetectionEnabled = false;
@@ -2444,7 +2447,35 @@ class _SOSScreenState extends State<SOSScreen>
     } catch (e) {
       await _updateTrackingStatus(deviceId, 'RIDING');
     }
-    setState(() => _isSharing = true);
+    setState(() {
+      _isSharing = true;
+      _hasShared = false;
+      _shareFlash = false;
+    });
+
+    // Start flashing share icon
+    _shareFlashTimer?.cancel();
+    _shareFlashTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
+      if (mounted && _isSharing && !_hasShared) {
+        setState(() => _shareFlash = !_shareFlash);
+      } else if (mounted && _shareFlash) {
+        setState(() => _shareFlash = false);
+      }
+    });
+
+    // Auto-open WhatsApp with tracking link
+    try {
+      final token = await _getOrCreateTrackingToken(deviceId, widget.company.id, name);
+      final trackLink = 'https://sos.cyberwarriors.co.za/track/?t=$token';
+      final msg = Uri.encodeComponent('Track my ride live: $trackLink');
+      final wa = Uri.parse('https://wa.me/?text=$msg');
+      if (await canLaunchUrl(wa)) {
+        await launchUrl(wa, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Auto share error: $e');
+    }
+
     _shareTimer = Timer.periodic(
       Duration(minutes: _shareIntervalMinutes),
       (_) async {
@@ -2465,7 +2496,13 @@ class _SOSScreenState extends State<SOSScreen>
   Future<void> _stopSharing() async {
     _shareTimer?.cancel();
     _shareTimer = null;
-    setState(() => _isSharing = false);
+    _shareFlashTimer?.cancel();
+    _shareFlashTimer = null;
+    setState(() {
+      _isSharing = false;
+      _shareFlash = false;
+      _hasShared = false;
+    });
     final deviceId = await getDeviceId();
     await _updateTrackingStatus(deviceId, 'IDLE');
   }
@@ -2508,6 +2545,7 @@ class _SOSScreenState extends State<SOSScreen>
     _accelSubscription?.cancel();
     _crashCountdownTimer?.cancel();
     _shareTimer?.cancel();
+    _shareFlashTimer?.cancel();
     _controller.dispose();
     _nameController.dispose();
     // Stop foreground service if no active SOS when screen is disposed
@@ -2622,20 +2660,31 @@ class _SOSScreenState extends State<SOSScreen>
                                 builder: (context, snap) {
                                   if (!snap.hasData) return const SizedBox.shrink();
                                   final link = 'https://sos.cyberwarriors.co.za/track/?t=\${snap.data}';
-                                  return IconButton(
-                                    icon: const Icon(Icons.share, color: Colors.white70),
-                                    tooltip: 'Share link',
-                                    onPressed: () async {
-                                      final trackLink = 'https://sos.cyberwarriors.co.za/track/?t=${snap.data}';
-                                      final msg = Uri.encodeComponent('Track my ride live: $trackLink');
-                                      final wa = Uri.parse('https://wa.me/?text=$msg');
-                                      if (await canLaunchUrl(wa)) {
-                                        await launchUrl(wa, mode: LaunchMode.externalApplication);
-                                      } else {
-                                        await launchUrl(wa, mode: LaunchMode.platformDefault);
-                                      }
-                                    },
-                                  );
+                                   return AnimatedContainer(
+                                    duration: const Duration(milliseconds: 300),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _shareFlash ? Colors.orange.withOpacity(0.3) : Colors.transparent,
+                                      boxShadow: _shareFlash ? [BoxShadow(color: Colors.orange.withOpacity(0.6), blurRadius: 12, spreadRadius: 2)] : [],
+                                    ),
+                                    child: IconButton(
+                                      icon: Icon(Icons.share,
+                                        color: _shareFlash ? Colors.orange : Colors.white70,
+                                        size: _shareFlash ? 26 : 24,
+                                      ),
+                                      tooltip: 'Share tracking link',
+                                      onPressed: () async {
+                                        setState(() => _hasShared = true);
+                                        final trackLink = 'https://sos.cyberwarriors.co.za/track/?t=${snap.data}';
+                                        final msg = Uri.encodeComponent('Track my ride live: $trackLink');
+                                        final wa = Uri.parse('https://wa.me/?text=$msg');
+                                        if (await canLaunchUrl(wa)) {
+                                          await launchUrl(wa, mode: LaunchMode.externalApplication);
+                                        } else {
+                                          await launchUrl(wa, mode: LaunchMode.platformDefault);
+                                        }
+                                      },
+                                    ));
                                 },
                               ),
                             ],
