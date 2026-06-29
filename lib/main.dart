@@ -2245,6 +2245,49 @@ class _SOSScreenState extends State<SOSScreen>
     };
   }
 
+  Future<void> _notifyOfficers(
+      String companyId, String riderName, double lat, double lng,
+      {String alertType = 'SOS'}) async {
+    try {
+      final currentId = await getDeviceId();
+      // Get all officer devices in this company
+      final devicesSnap = await FirebaseFirestore.instance
+          .collection('devices')
+          .where('companyId', isEqualTo: companyId)
+          .where('role', isEqualTo: 'officer')
+          .get();
+
+      for (final device in devicesSnap.docs) {
+        // Document ID is the deviceId
+        final officerDeviceId = device.id;
+        // Don't alert the rider themselves
+        if (officerDeviceId == currentId) continue;
+        // Get officer profile using deviceId
+        final profileSnap = await FirebaseFirestore.instance
+            .collection('profiles')
+            .doc(officerDeviceId)
+            .get();
+        if (!profileSnap.exists) continue;
+        final data = profileSnap.data() ?? {};
+        // Try mobilePhone first, fall back to contact1Phone
+        String phone = (data['mobilePhone'] ?? '').toString().trim();
+        if (phone.isEmpty) phone = (data['contact1Phone'] ?? '').toString().trim();
+        if (phone.isEmpty) continue;
+        final countryCode = (data['countryCode'] ?? '27').toString();
+        await sendWhatsAppAlert(
+          phone: phone,
+          userName: riderName,
+          lat: lat,
+          lng: lng,
+          countryCode: countryCode,
+          alertType: alertType,
+        );
+      }
+    } catch (e) {
+      debugPrint('Officer notify error: \$e');
+    }
+  }
+
   Future<void> _sendWhatsAppAlerts(
       Map<String, dynamic> profile, double lat, double lng,
       {String alertType = 'SOS'}) async {
@@ -2349,6 +2392,14 @@ class _SOSScreenState extends State<SOSScreen>
       await _updateTrackingStatus(deviceId, 'SOS', lat: pos.latitude, lng: pos.longitude);
 
       await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude);
+      // Notify all officers in the company
+      await _notifyOfficers(
+        widget.company.id,
+        profile['name'] ?? 'Rider',
+        pos.latitude,
+        pos.longitude,
+        alertType: 'SOS',
+      );
     } catch (e) {
       debugPrint("SOS Error: $e");
       if (mounted) {
@@ -2424,6 +2475,14 @@ class _SOSScreenState extends State<SOSScreen>
       });
       Vibration.vibrate(duration: 500);
       await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude, alertType: type);
+      // Notify all officers in the company
+      await _notifyOfficers(
+        widget.company.id,
+        profile['name'] ?? 'Rider',
+        pos.latitude,
+        pos.longitude,
+        alertType: type,
+      );
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(label + ' alert sent - organiser notified!'),
