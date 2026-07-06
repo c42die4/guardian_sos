@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:math' as math;
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
@@ -21,6 +22,62 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:audioplayers/audioplayers.dart';
+
+Uint8List _generateBeepTone({int frequency = 900, int durationMs = 150, int sampleRate = 44100}) {
+  final int numSamples = (sampleRate * durationMs / 1000).round();
+  final ByteData byteData = ByteData(44 + numSamples * 2);
+  int offset = 0;
+
+  void writeString(String s) {
+    for (int i = 0; i < s.length; i++) {
+      byteData.setUint8(offset, s.codeUnitAt(i));
+      offset += 1;
+    }
+  }
+
+  void writeUint32(int v) {
+    byteData.setUint32(offset, v, Endian.little);
+    offset += 4;
+  }
+
+  void writeUint16(int v) {
+    byteData.setUint16(offset, v, Endian.little);
+    offset += 2;
+  }
+
+  final int byteRate = sampleRate * 2;
+  final int dataSize = numSamples * 2;
+
+  writeString('RIFF');
+  writeUint32(36 + dataSize);
+  writeString('WAVE');
+  writeString('fmt ');
+  writeUint32(16);
+  writeUint16(1);
+  writeUint16(1);
+  writeUint32(sampleRate);
+  writeUint32(byteRate);
+  writeUint16(2);
+  writeUint16(16);
+  writeString('data');
+  writeUint32(dataSize);
+
+  for (int i = 0; i < numSamples; i++) {
+    final double t = i / sampleRate;
+    final double envelope = i < numSamples * 0.1
+        ? i / (numSamples * 0.1)
+        : (i > numSamples * 0.8
+            ? (numSamples - i) / (numSamples * 0.2)
+            : 1.0);
+    final int sample =
+        (math.sin(2 * math.pi * frequency * t) * 32000 * envelope).round();
+    byteData.setInt16(offset, sample, Endian.little);
+    offset += 2;
+  }
+
+  return byteData.buffer.asUint8List();
+}
 
 // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // NOTIFICATIONS
@@ -133,6 +190,19 @@ Future<void> showAlertNotification(String name, String location,
 
 // ════════════════════════════════════════════════════════════════════
 // FAMILY TRACKING HELPERS
+
+double _distanceKm(double lat1, double lng1, double lat2, double lng2) {
+  const r = 6371.0; // Earth radius km
+  final dLat = (lat2 - lat1) * (math.pi / 180);
+  final dLng = (lng2 - lng1) * (math.pi / 180);
+  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(lat1 * (math.pi / 180)) *
+          math.cos(lat2 * (math.pi / 180)) *
+          math.sin(dLng / 2) *
+          math.sin(dLng / 2);
+  final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  return r * c;
+}
 
 String _generateTrackingToken() {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -416,6 +486,7 @@ void initForegroundTask() {
       channelDescription: 'Tracks your location during an active SOS',
       channelImportance: NotificationChannelImportance.HIGH,
       priority: NotificationPriority.HIGH,
+      onlyAlertOnce: true,
     ),
     iosNotificationOptions: const IOSNotificationOptions(
       showNotification: true,
@@ -654,7 +725,7 @@ Future<void> sendWhatsAppAlert({
         '$alertTitle\n\n'
         'Location: $mapsLink\n\n'
         '${phoneInfo}Please respond immediately or call emergency services.');
-    final url = 'https://wa.me/$cleaned?text=$message';
+    final url = 'whatsapp://send?phone=$cleaned&text=$message';
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -668,6 +739,37 @@ Future<void> sendWhatsAppAlert({
 // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // CONNECTIVITY
 // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
+Future<void> saveFcmToken(String deviceId, String companyId) async {
+  try {
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null) {
+      await FirebaseFirestore.instance
+          .collection('devices')
+          .doc(deviceId)
+          .set({'fcmToken': token}, SetOptions(merge: true));
+      debugPrint('FCM token saved: \$token');
+    }
+  } catch (e) {
+    debugPrint('FCM token error: \$e');
+  }
+}
+
+Future<void> sendFcmToDevice(String token, String title, String body) async {
+  // Direct FCM send via Firestore trigger — store notification request
+  // Firebase will deliver via FCM token
+  try {
+    await FirebaseFirestore.instance.collection('notifications').add({
+      'token': token,
+      'title': title,
+      'body': body,
+      'createdAt': FieldValue.serverTimestamp(),
+      'delivered': false,
+    });
+  } catch (e) {
+    debugPrint('FCM send error: \$e');
+  }
+}
+
 Future<bool> hasInternet() async {
   try {
     final socket = await Socket.connect('8.8.8.8', 53,
@@ -677,6 +779,12 @@ Future<bool> hasInternet() async {
   } catch (e) {
     return false;
   }
+}
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  debugPrint('Background FCM message: \${message.notification?.title}');
 }
 
 void main() async {
@@ -905,6 +1013,8 @@ class _CompanyRegistrationScreenState
       await saveCompanyData(company);
       currentCompany = company;
       currentRole = role;
+      // Save FCM token for push notifications
+      await saveFcmToken(deviceId, companyDoc.id);
 
       // Generate tracking token for riders
       if (role == 'client') {
@@ -1408,7 +1518,7 @@ class _AppShellState extends State<AppShell> {
                   setState(() {});
                 },
               ),
-            if (isOfficer) ...[
+            ...[
               // Radius button  -  only show in officer mode
               if (isOfficerMode)
                 IconButton(
@@ -1442,7 +1552,7 @@ class _AppShellState extends State<AppShell> {
         ),
         body: _checkingProfile
             ? const Center(child: CircularProgressIndicator())
-            : isOfficer && isOfficerMode
+            : isOfficerMode
                 ? OfficerDashboard(company: widget.company, responseRadiusKm: _radiusKm)
                 : SOSScreen(company: widget.company),
       ),
@@ -1488,6 +1598,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _wa3PhoneCtrl = TextEditingController();
   final _mobilePhoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
+  int _notifyRadiusKm = 0; // 0 = everyone/unlimited
 
   @override
   void initState() {
@@ -1526,6 +1637,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _wa3PhoneCtrl.text = d['wa3Phone'] ?? '';
       _mobilePhoneCtrl.text = d['mobilePhone'] ?? '';
       _emailCtrl.text = d['email'] ?? '';
+      _notifyRadiusKm = (d['notifyRadiusKm'] is int) ? d['notifyRadiusKm'] : 0;
     }
     setState(() => _loading = false);
   }
@@ -1558,6 +1670,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'wa3Phone': _wa3PhoneCtrl.text.trim(),
       'mobilePhone': _mobilePhoneCtrl.text.trim(),
       'email': _emailCtrl.text.trim(),
+      'notifyRadiusKm': _notifyRadiusKm,
       'companyId': currentCompany?.id ?? '',
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -1758,6 +1871,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       "Contact 2", _wa2NameCtrl, _wa2PhoneCtrl),
                   _waContactBlock(
                       "Contact 3", _wa3NameCtrl, _wa3PhoneCtrl),
+                  _sectionHeader(
+                    "Notification Range",
+                    Icons.notifications_active,
+                    subtitle:
+                        "Get a WhatsApp when someone else in the club sends an alert, "
+                        "if they're within this distance of you. Choose Everyone to "
+                        "always be notified regardless of distance.",
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ['Everyone', 0],
+                          ['10km', 10],
+                          ['25km', 25],
+                          ['50km', 50],
+                          ['100km', 100],
+                        ].map<Widget>((opt) {
+                          final selected = _notifyRadiusKm == opt[1];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () => setState(() => _notifyRadiusKm = opt[1] as int),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: selected ? Colors.orange : Colors.white10,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                      color: selected ? Colors.orange : Colors.white24),
+                                ),
+                                child: Text(opt[0] as String,
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: selected ? Colors.black : Colors.white70,
+                                        fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -1823,7 +1981,7 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
   late Animation<double> _pulseAnimation;
   late Timer _timer;
   int _seconds = 0;
-  String? _respondingBy;
+  List<String> _responders = [];
   StreamSubscription? _alertListener;
 
   @override
@@ -1846,8 +2004,13 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
       if (!snap.exists) return;
       final data = snap.data()!;
       final status = data['status'] as String?;
-      final respondingBy = data['respondingBy'] as String?;
-      if (mounted) setState(() => _respondingBy = respondingBy);
+      final respondersRaw = data['responders'] as List<dynamic>?;
+      final responderNames = respondersRaw
+              ?.whereType<Map>()
+              .map((r) => (r['name'] ?? 'Someone').toString())
+              .toList() ??
+          <String>[];
+      if (mounted) setState(() => _responders = responderNames);
       if (status == 'RESOLVED' || status == 'CANCELLED') {
         await stopLocationService();
         if (mounted) widget.onCancel();
@@ -1989,16 +2152,16 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
               ),
               const SizedBox(height: 24),
               Text(
-                _respondingBy != null ? "Help is on the way!" : "SOS Sent - Waiting for response...",
+                _responders.isNotEmpty ? "Help is on the way!" : "SOS Sent - Waiting for response...",
                 style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: _respondingBy != null ? Colors.white : Colors.orange),
+                    color: _responders.isNotEmpty ? Colors.white : Colors.orange),
               ),
               const SizedBox(height: 8),
               Text(
-                _respondingBy != null
-                    ? "$_respondingBy is on the way to you."
+                _responders.isNotEmpty
+                    ? "${_responders.join(', ')} ${_responders.length == 1 ? 'is' : 'are'} on the way to you."
                     : "Your SOS has been sent. Stay calm and keep your phone with you.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[400], fontSize: 14),
@@ -2121,6 +2284,8 @@ class _SOSScreenState extends State<SOSScreen>
   bool _shareFlash = false;
   Timer? _shareFlashTimer;
   bool _hasShared = false;
+  // FCM notification listener
+  StreamSubscription? _notificationSubscription;
 
   // Crash detection
   bool _crashDetectionEnabled = false;
@@ -2129,6 +2294,7 @@ class _SOSScreenState extends State<SOSScreen>
   bool _crashCountdownActive = false;
   int _crashCountdownSeconds = 60;
   DateTime? _lastHighGEvent;
+  final AudioPlayer _crashBeepPlayer = AudioPlayer();
   static const double _crashThresholdG = 12.0;
   static const double _gravity = 9.8;
 
@@ -2142,6 +2308,41 @@ class _SOSScreenState extends State<SOSScreen>
     _controller = AnimationController(
         vsync: this, duration: const Duration(seconds: 3))
       ..addListener(() => setState(() => _progress = _controller.value));
+    // Request FCM permissions and refresh token
+    _initFcm();
+    // Start listening for incoming notifications
+    _startNotificationListener();
+  }
+
+  Future<void> _initFcm() async {
+    try {
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      // Refresh token in case it changed
+      final deviceId = await getDeviceId();
+      final companyId = await getSavedCompanyId() ?? '';
+      if (companyId.isNotEmpty) {
+        await saveFcmToken(deviceId, companyId);
+      }
+      // Handle foreground notifications
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        if (message.notification != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('\${message.notification!.title ?? "Alert"}: '
+                  '\${message.notification!.body ?? ""}'),
+              backgroundColor: Colors.red[800],
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+      });
+    } catch (e) {
+      debugPrint('FCM init error: \$e');
+    }
   }
 
   @override
@@ -2165,11 +2366,24 @@ class _SOSScreenState extends State<SOSScreen>
       }
     });
   }
+  Future<void> _playCrashBeep() async {
+    try {
+      final int remaining = _crashCountdownSeconds.clamp(0, 30);
+      final double progress = 1 - (remaining / 30);
+      final double volume = (0.4 + progress * 0.6).clamp(0.4, 1.0);
+      final int freq = (900 + progress * 300).round();
+      final bytes = _generateBeepTone(frequency: freq);
+      await _crashBeepPlayer.play(BytesSource(bytes), volume: volume);
+    } catch (e) {
+      debugPrint('Crash beep error: $e');
+    }
+  }
 
   void _stopCrashDetection() {
     _accelSubscription?.cancel();
     _accelSubscription = null;
     _crashCountdownTimer?.cancel();
+    _crashBeepPlayer.stop();
     if (mounted) {
       setState(() {
         _crashCountdownActive = false;
@@ -2185,6 +2399,7 @@ class _SOSScreenState extends State<SOSScreen>
       _crashCountdownActive = true;
       _crashCountdownSeconds = 30;
     });
+    _playCrashBeep();
     _crashCountdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
@@ -2197,6 +2412,12 @@ class _SOSScreenState extends State<SOSScreen>
       if (_crashCountdownSeconds % 5 == 0) {
         Vibration.vibrate(duration: 300);
       }
+      _playCrashBeep();
+      if (_crashCountdownSeconds <= 10 && _crashCountdownSeconds > 0) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (_crashCountdownActive) _playCrashBeep();
+        });
+      }
       if (_crashCountdownSeconds <= 0) {
         t.cancel();
         setState(() => _crashCountdownActive = false);
@@ -2208,6 +2429,7 @@ class _SOSScreenState extends State<SOSScreen>
 
   void _cancelCrashCountdown() {
     _crashCountdownTimer?.cancel();
+    _crashBeepPlayer.stop();
     Vibration.vibrate(duration: 200);
     if (mounted) {
       setState(() {
@@ -2245,35 +2467,58 @@ class _SOSScreenState extends State<SOSScreen>
     };
   }
 
-  Future<void> _notifyOfficers(
+  Future<void> _notifyCompany(
       String companyId, String riderName, double lat, double lng,
       {String alertType = 'SOS'}) async {
     try {
       final currentId = await getDeviceId();
-      // Get all officer devices in this company
+      // Get ALL devices in this company - members and officers alike
       final devicesSnap = await FirebaseFirestore.instance
           .collection('devices')
           .where('companyId', isEqualTo: companyId)
-          .where('role', isEqualTo: 'officer')
           .get();
 
       for (final device in devicesSnap.docs) {
-        // Document ID is the deviceId
-        final officerDeviceId = device.id;
-        // Don't alert the rider themselves
-        if (officerDeviceId == currentId) continue;
-        // Get officer profile using deviceId
+        final recipientDeviceId = device.id;
+        // Don't alert the sender themselves
+        if (recipientDeviceId == currentId) continue;
+
         final profileSnap = await FirebaseFirestore.instance
             .collection('profiles')
-            .doc(officerDeviceId)
+            .doc(recipientDeviceId)
             .get();
         if (!profileSnap.exists) continue;
         final data = profileSnap.data() ?? {};
-        // Try mobilePhone first, fall back to contact1Phone
+
         String phone = (data['mobilePhone'] ?? '').toString().trim();
         if (phone.isEmpty) phone = (data['contact1Phone'] ?? '').toString().trim();
         if (phone.isEmpty) continue;
+
+        // Check radius preference (0 = everyone/unlimited)
+        final radiusKm = (data['notifyRadiusKm'] is int) ? data['notifyRadiusKm'] as int : 0;
+        if (radiusKm > 0) {
+          // Try to get recipient's last known location from tracking collection
+          final trackingSnap = await FirebaseFirestore.instance
+              .collection('tracking')
+              .where('deviceId', isEqualTo: recipientDeviceId)
+              .where('active', isEqualTo: true)
+              .limit(1)
+              .get();
+          if (trackingSnap.docs.isNotEmpty) {
+            final tData = trackingSnap.docs.first.data();
+            final tLat = (tData['lat'] is num) ? (tData['lat'] as num).toDouble() : 0.0;
+            final tLng = (tData['lng'] is num) ? (tData['lng'] as num).toDouble() : 0.0;
+            if (tLat != 0.0 && tLng != 0.0) {
+              final dist = _distanceKm(lat, lng, tLat, tLng);
+              if (dist > radiusKm) continue; // outside their chosen radius, skip
+            }
+            // if no valid last-known location, fall through and notify anyway
+          }
+          // if no tracking doc at all, fall through and notify anyway (safety net)
+        }
+
         final countryCode = (data['countryCode'] ?? '27').toString();
+        // Send WhatsApp if phone available
         await sendWhatsAppAlert(
           phone: phone,
           userName: riderName,
@@ -2282,9 +2527,31 @@ class _SOSScreenState extends State<SOSScreen>
           countryCode: countryCode,
           alertType: alertType,
         );
+        // Send FCM push notification
+        final fcmToken = (data['fcmToken'] ?? '').toString().trim();
+        if (fcmToken.isNotEmpty) {
+          final alertTitle = alertType == 'SOS'
+              ? 'EMERGENCY SOS'
+              : alertType == 'CRASH'
+              ? 'CRASH DETECTED'
+              : alertType == 'LOST'
+              ? 'RIDER LOST'
+              : alertType == 'FUEL'
+              ? 'FUEL REQUEST'
+              : alertType == 'BREAKDOWN'
+              ? 'BREAKDOWN'
+              : alertType == 'MEDICAL'
+              ? 'MEDICAL EMERGENCY'
+              : 'ALERT';
+          await sendFcmToDevice(
+            fcmToken,
+            '\$alertTitle — \$riderName',
+            'Tap to open the app and respond.',
+          );
+        }
       }
     } catch (e) {
-      debugPrint('Officer notify error: \$e');
+      debugPrint('Company notify error: \$e');
     }
   }
 
@@ -2392,8 +2659,8 @@ class _SOSScreenState extends State<SOSScreen>
       await _updateTrackingStatus(deviceId, 'SOS', lat: pos.latitude, lng: pos.longitude);
 
       await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude);
-      // Notify all officers in the company
-      await _notifyOfficers(
+      // Notify the whole company, respecting radius preferences
+      await _notifyCompany(
         widget.company.id,
         profile['name'] ?? 'Rider',
         pos.latitude,
@@ -2475,8 +2742,8 @@ class _SOSScreenState extends State<SOSScreen>
       });
       Vibration.vibrate(duration: 500);
       await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude, alertType: type);
-      // Notify all officers in the company
-      await _notifyOfficers(
+      // Notify the whole company, respecting radius preferences
+      await _notifyCompany(
         widget.company.id,
         profile['name'] ?? 'Rider',
         pos.latitude,
@@ -2493,6 +2760,36 @@ class _SOSScreenState extends State<SOSScreen>
           SnackBar(content: Text('Failed to send alert: ' + e.toString())));
     }
   }
+  Future<void> _startNotificationListener() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null) return;
+      // Listen for new notifications addressed to this device
+      _notificationSubscription = FirebaseFirestore.instance
+          .collection('notifications')
+          .where('token', isEqualTo: token)
+          .where('delivered', isEqualTo: false)
+          .snapshots()
+          .listen((snap) async {
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final title = data['title'] ?? 'Alert';
+          final body = data['body'] ?? '';
+          // Show local notification
+          await showAlertNotification(
+            title,
+            body,
+            notificationId: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          );
+          // Mark as delivered
+          await doc.reference.update({'delivered': true});
+        }
+      });
+    } catch (e) {
+      debugPrint('Notification listener error: \$e');
+    }
+  }
+
   Future<void> _startSharing() async {
     final deviceId = await getDeviceId();
     final name = _nameController.text.isNotEmpty ? _nameController.text : 'Rider';
@@ -2527,7 +2824,7 @@ class _SOSScreenState extends State<SOSScreen>
       final token = await _getOrCreateTrackingToken(deviceId, widget.company.id, name);
       final trackLink = 'https://sos.cyberwarriors.co.za/track/?t=$token';
       final msg = Uri.encodeComponent('Track my ride live: $trackLink');
-      final wa = Uri.parse('https://wa.me/?text=$msg');
+      final wa = Uri.parse('whatsapp://send?text=$msg');
       if (await canLaunchUrl(wa)) {
         await launchUrl(wa, mode: LaunchMode.externalApplication);
       }
@@ -2605,6 +2902,7 @@ class _SOSScreenState extends State<SOSScreen>
     _crashCountdownTimer?.cancel();
     _shareTimer?.cancel();
     _shareFlashTimer?.cancel();
+    _notificationSubscription?.cancel();
     _controller.dispose();
     _nameController.dispose();
     // Stop foreground service if no active SOS when screen is disposed
@@ -2736,7 +3034,7 @@ class _SOSScreenState extends State<SOSScreen>
                                         setState(() => _hasShared = true);
                                         final trackLink = 'https://sos.cyberwarriors.co.za/track/?t=${snap.data}';
                                         final msg = Uri.encodeComponent('Track my ride live: $trackLink');
-                                        final wa = Uri.parse('https://wa.me/?text=$msg');
+                                        final wa = Uri.parse('whatsapp://send?text=$msg');
                                         if (await canLaunchUrl(wa)) {
                                           await launchUrl(wa, mode: LaunchMode.externalApplication);
                                         } else {
@@ -3405,6 +3703,24 @@ class OfficerDashboard extends StatefulWidget {
 }
 
 class _OfficerDashboardState extends State<OfficerDashboard> {
+  Future<void> _notifyCompanyOfUpdate(
+      String companyId, String excludeDeviceId, String message) async {
+    try {
+      final devicesSnap = await FirebaseFirestore.instance
+          .collection('devices')
+          .where('companyId', isEqualTo: companyId)
+          .get();
+      for (final device in devicesSnap.docs) {
+        if (device.id == excludeDeviceId) continue;
+        final token = (device.data()['fcmToken'] ?? '').toString().trim();
+        if (token.isEmpty) continue;
+        await sendFcmToDevice(token, 'Alert Update', message);
+      }
+    } catch (e) {
+      debugPrint('Notify company update error: $e');
+    }
+  }
+  String? _myDeviceId;
   final MapController _mapCtrl = MapController();
   Set<String> _knownAlertIds = {};
   bool _mapReady = false;
@@ -3420,6 +3736,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   @override
   void initState() {
     super.initState();
+    getDeviceId().then((id) {
+      if (mounted) setState(() => _myDeviceId = id);
+    });
     _getOfficerPosition();
     _flashTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       if (mounted) setState(() => _crashFlash = !_crashFlash);
@@ -3602,17 +3921,88 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       final deviceId = await getDeviceId();
       final profileDoc = await FirebaseFirestore.instance
           .collection('profiles').doc(deviceId).get();
-      final officerName = (profileDoc.exists &&
+      final responderName = (profileDoc.exists &&
               (profileDoc.data()?['name'] ?? '').isNotEmpty)
           ? profileDoc.data()!['name'] as String
-          : 'An officer';
+          : 'Someone';
+
+      final alertDoc =
+          await FirebaseFirestore.instance.collection('alerts').doc(id).get();
+      final existing =
+          (alertDoc.data()?['responders'] as List?)?.whereType<Map>().toList() ??
+              <Map>[];
+      final alreadyThere = existing.any((r) => r['deviceId'] == deviceId);
+      final others = existing.where((r) => r['deviceId'] != deviceId).toList();
+
+      if (!alreadyThere && existing.isNotEmpty) {
+        final names = others.map((r) => (r['name'] ?? 'Someone').toString()).join(', ');
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: const Text('Already responding'),
+            content: Text(
+                '$names ${others.length == 1 ? "is" : "are"} already responding to this alert. Do you still want to respond?'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text("Yes, I'll respond too"),
+              ),
+            ],
+          ),
+        );
+        if (confirm != true) return;
+      }
+
+      final updatedList = [
+        ...others,
+        {
+          'deviceId': deviceId,
+          'name': responderName,
+          'respondingAt': DateTime.now().toIso8601String(),
+        },
+      ];
+
       await FirebaseFirestore.instance.collection('alerts').doc(id).update({
-        'respondingBy': officerName,
+        'responders': updatedList,
+        'respondingBy': responderName,
         'respondingAt': FieldValue.serverTimestamp(),
       });
+
+      await _notifyCompanyOfUpdate(
+          widget.company.id, deviceId, '$responderName is responding to the alert.');
+      SOSEscalationManager.stopEscalation(id);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Marked as responding - member notified'),
+        SnackBar(content: Text('Marked as responding - rider notified'),
             backgroundColor: Colors.orange[800]));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
+  Future<void> _unmarkResponding(String id) async {
+    try {
+      final deviceId = await getDeviceId();
+      final alertDoc =
+          await FirebaseFirestore.instance.collection('alerts').doc(id).get();
+      final existing =
+          (alertDoc.data()?['responders'] as List?)?.whereType<Map>().toList() ??
+              <Map>[];
+      final updatedList = existing.where((r) => r['deviceId'] != deviceId).toList();
+      await FirebaseFirestore.instance.collection('alerts').doc(id).update({
+        'responders': updatedList,
+        'respondingBy': updatedList.isNotEmpty
+            ? (updatedList.last['name'] ?? '').toString()
+            : null,
+      });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No longer marked as responding'),
+            backgroundColor: Colors.grey[800]));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed: $e')));
@@ -3659,6 +4049,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         'resolvedBy': officerName,
         'resolvedByDeviceId': deviceId,
       });
+
+      await _notifyCompanyOfUpdate(
+          widget.company.id, deviceId, 'Alert resolved by $officerName.');
 
       // Stop escalation reminders for this specific alert
       SOSEscalationManager.stopEscalation(id);
@@ -4282,14 +4675,29 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
-                                  child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.directions_run, color: Colors.black),
-                                    label: const Text("RESPOND", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                                    style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.orange,
-                                        padding: const EdgeInsets.all(12)),
-                                    onPressed: () => _markResponding(_selectedAlertId!),
-                                  ),
+                                  child: Builder(builder: (context) {
+                                    final responders = (_selectedAlert?['responders'] as List?)
+                                            ?.whereType<Map>()
+                                            .toList() ??
+                                        [];
+                                    final amResponding = _myDeviceId != null &&
+                                        responders.any((r) => r['deviceId'] == _myDeviceId);
+                                    return ElevatedButton.icon(
+                                      icon: Icon(
+                                          amResponding ? Icons.close : Icons.directions_run,
+                                          color: Colors.black),
+                                      label: Text(amResponding ? "UN-RESPOND" : "RESPOND",
+                                          style: const TextStyle(
+                                              color: Colors.black, fontWeight: FontWeight.bold)),
+                                      style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              amResponding ? Colors.grey : Colors.orange,
+                                          padding: const EdgeInsets.all(12)),
+                                      onPressed: () => amResponding
+                                          ? _unmarkResponding(_selectedAlertId!)
+                                          : _markResponding(_selectedAlertId!),
+                                    );
+                                  }),
                                 ),
                               ],
                             ),
@@ -4297,14 +4705,16 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                             Row(
                               children: [
                                 Expanded(
-                                  child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.check_circle, color: Colors.white),
-                                    label: const Text("RESOLVE", style: TextStyle(color: Colors.white)),
-                                    style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green,
-                                        padding: const EdgeInsets.all(12)),
-                                    onPressed: () => _resolveAlert(_selectedAlertId!),
-                                  ),
+                                  child: currentRole == 'officer'
+                                      ? ElevatedButton.icon(
+                                          icon: const Icon(Icons.check_circle, color: Colors.white),
+                                          label: const Text("RESOLVE", style: TextStyle(color: Colors.white)),
+                                          style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.green,
+                                              padding: const EdgeInsets.all(12)),
+                                          onPressed: () => _resolveAlert(_selectedAlertId!),
+                                        )
+                                      : const SizedBox.shrink(),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -4416,13 +4826,14 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                         color: Colors.orange),
                                     onPressed: () => _markResponding(doc.id),
                                   ),
-                                  IconButton(
-                                    icon: const Icon(
-                                        Icons.check_circle,
-                                        color: Colors.green),
-                                    onPressed: () =>
-                                        _resolveAlert(doc.id),
-                                  ),
+                                  if (currentRole == 'officer')
+                                    IconButton(
+                                      icon: const Icon(
+                                          Icons.check_circle,
+                                          color: Colors.green),
+                                      onPressed: () =>
+                                          _resolveAlert(doc.id),
+                                    ),
                                 ],
                               ),
                               onTap: () =>
