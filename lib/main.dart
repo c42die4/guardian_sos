@@ -2560,7 +2560,7 @@ class _SOSScreenState extends State<SOSScreen>
       {String alertType = 'SOS'}) async {
     final userName = profile['name'] ?? 'User';
     final countryCode = (profile['countryCode'] ?? '27').toString();
-    final riderPhone = (profile['contact1Phone'] ?? '').toString().trim();
+    final riderPhone = (profile['mobilePhone'] ?? '').toString().trim();
     final contacts = [
       {'name': profile['wa1Name'], 'phone': profile['wa1Phone']},
       {'name': profile['wa2Name'], 'phone': profile['wa2Phone']},

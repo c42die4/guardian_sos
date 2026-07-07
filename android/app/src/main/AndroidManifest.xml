@@ -18,6 +18,18 @@
     <!-- Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <queries>
+        <package android:name="com.whatsapp" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="whatsapp" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+    </queries>
+
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
