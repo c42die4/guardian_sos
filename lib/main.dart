@@ -739,18 +739,25 @@ Future<void> sendWhatsAppAlert({
 // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // CONNECTIVITY
 // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
-Future<void> saveFcmToken(String deviceId, String companyId) async {
+Future<void> saveFcmToken(String deviceId, String companyId, String role) async {
   try {
     final token = await FirebaseMessaging.instance.getToken();
+    final data = <String, dynamic>{
+      'companyId': companyId,
+      'role': role,
+      'isActive': true,
+      'lastSeen': FieldValue.serverTimestamp(),
+    };
     if (token != null) {
-      await FirebaseFirestore.instance
-          .collection('devices')
-          .doc(deviceId)
-          .set({'fcmToken': token}, SetOptions(merge: true));
-      debugPrint('FCM token saved: \$token');
+      data['fcmToken'] = token;
     }
+    await FirebaseFirestore.instance
+        .collection('devices')
+        .doc(deviceId)
+        .set(data, SetOptions(merge: true));
+    debugPrint('FCM token saved: $token');
   } catch (e) {
-    debugPrint('FCM token error: \$e');
+    debugPrint('FCM token error: $e');
   }
 }
 
@@ -1014,7 +1021,7 @@ class _CompanyRegistrationScreenState
       currentCompany = company;
       currentRole = role;
       // Save FCM token for push notifications
-      await saveFcmToken(deviceId, companyDoc.id);
+      await saveFcmToken(deviceId, companyDoc.id, role);
 
       // Generate tracking token for riders
       if (role == 'client') {
@@ -2312,6 +2319,38 @@ class _SOSScreenState extends State<SOSScreen>
     _initFcm();
     // Start listening for incoming notifications
     _startNotificationListener();
+    _checkForActiveAlert();
+  }
+
+  Future<void> _checkForActiveAlert() async {
+    try {
+      final deviceId = await getDeviceId();
+      final snap = await FirebaseFirestore.instance
+          .collection('alerts')
+          .where('deviceId', isEqualTo: deviceId)
+          .where('status', isEqualTo: 'ACTIVE')
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) return;
+      final doc = snap.docs.first;
+      final data = doc.data();
+      final lat = (data['lat'] is num) ? (data['lat'] as num).toDouble() : 0.0;
+      final lng = (data['lng'] is num) ? (data['lng'] as num).toDouble() : 0.0;
+      final profile =
+          (data['profile'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+      if (mounted) {
+        setState(() {
+          _sosActive = true;
+          _activeAlertId = doc.id;
+          _lastProfile = profile;
+          _lastLat = lat;
+          _lastLng = lng;
+        });
+        await startLocationService(doc.id, widget.company.id);
+      }
+    } catch (e) {
+      debugPrint('Check active alert error: $e');
+    }
   }
 
   Future<void> _initFcm() async {
@@ -2324,8 +2363,9 @@ class _SOSScreenState extends State<SOSScreen>
       // Refresh token in case it changed
       final deviceId = await getDeviceId();
       final companyId = await getSavedCompanyId() ?? '';
+      final role = await getSavedRole();
       if (companyId.isNotEmpty) {
-        await saveFcmToken(deviceId, companyId);
+        await saveFcmToken(deviceId, companyId, role);
       }
       // Handle foreground notifications
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -2631,6 +2671,7 @@ class _SOSScreenState extends State<SOSScreen>
       Position pos = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
       final profile = await _getProfileSnapshot();
+      final deviceId = await getDeviceId();
 
       DocumentReference doc =
           await FirebaseFirestore.instance.collection('alerts').add({
@@ -2643,6 +2684,7 @@ class _SOSScreenState extends State<SOSScreen>
         'createdAt': FieldValue.serverTimestamp(),
         'profile': profile,
         'companyId': widget.company.id,
+        'deviceId': deviceId,
       });
 
       _activeAlertId = doc.id;
@@ -2655,7 +2697,6 @@ class _SOSScreenState extends State<SOSScreen>
       if (mounted) setState(() => _sosActive = true);
 
       // Update family tracking status
-      final deviceId = await getDeviceId();
       await _updateTrackingStatus(deviceId, 'SOS', lat: pos.latitude, lng: pos.longitude);
 
       await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude);
@@ -2728,6 +2769,7 @@ class _SOSScreenState extends State<SOSScreen>
       Position pos = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
       final profile = await _getProfileSnapshot();
+      final deviceId = await getDeviceId();
       await FirebaseFirestore.instance.collection('alerts').add({
         'userName': profile['name'] ?? 'Rider',
         'mobilePhone': profile['mobilePhone'] ?? '',
@@ -2739,6 +2781,7 @@ class _SOSScreenState extends State<SOSScreen>
         'createdAt': FieldValue.serverTimestamp(),
         'profile': profile,
         'companyId': widget.company.id,
+        'deviceId': deviceId,
       });
       Vibration.vibrate(duration: 500);
       await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude, alertType: type);
