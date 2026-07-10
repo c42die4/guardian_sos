@@ -698,6 +698,7 @@ Future<void> sendWhatsAppAlert({
   String countryCode = '27',
   String alertType = 'SOS',
   String? riderPhone,
+  String? customMessage,
 }) async {
   try {
     final whatsappCheck = Uri.parse('whatsapp://send');
@@ -716,14 +717,16 @@ Future<void> sendWhatsAppAlert({
       case 'LOST': alertTitle = 'RIDER LOST - $userName needs directions'; break;
       case 'FUEL': alertTitle = 'FUEL REQUEST - $userName has run out of fuel'; break;
       case 'BREAKDOWN': alertTitle = 'BREAKDOWN - $userName needs mechanical help'; break;
-      case 'MEDICAL': alertTitle = 'MEDICAL EMERGENCY - $userName needs medical help'; break;
+      case 'OTHER': alertTitle = 'HELP NEEDED - $userName needs assistance'; break;
       default: alertTitle = 'EMERGENCY SOS - $userName needs urgent help!';
     }
     final phoneInfo = riderPhone != null && riderPhone.isNotEmpty
         ? 'Call $userName: $riderPhone\n\n' : '';
+    final customInfo = customMessage != null && customMessage.isNotEmpty
+        ? '"$customMessage"\n\n' : '';
     final message = Uri.encodeComponent(
         '$alertTitle\n\n'
-        'Location: $mapsLink\n\n'
+        '${customInfo}Location: $mapsLink\n\n'
         '${phoneInfo}Please respond immediately or call emergency services.');
     final url = 'whatsapp://send?phone=$cleaned&text=$message';
     final uri = Uri.parse(url);
@@ -1532,6 +1535,15 @@ class _AppShellState extends State<AppShell> {
                   icon: const Icon(Icons.radar),
                   tooltip: 'Response Radius',
                   onPressed: () => _showRadiusDialog(),
+                ),
+              if (isOfficerMode)
+                IconButton(
+                  icon: const Icon(Icons.history),
+                  tooltip: 'Alert History',
+                  onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => AlertHistoryScreen(company: widget.company))),
                 ),
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -2509,7 +2521,7 @@ class _SOSScreenState extends State<SOSScreen>
 
   Future<void> _notifyCompany(
       String companyId, String riderName, double lat, double lng,
-      {String alertType = 'SOS'}) async {
+      {String alertType = 'SOS', String? customMessage}) async {
     try {
       final currentId = await getDeviceId();
       // Get ALL devices in this company - members and officers alike
@@ -2558,15 +2570,18 @@ class _SOSScreenState extends State<SOSScreen>
         }
 
         final countryCode = (data['countryCode'] ?? '27').toString();
-        // Send WhatsApp if phone available
-        await sendWhatsAppAlert(
-          phone: phone,
-          userName: riderName,
-          lat: lat,
-          lng: lng,
-          countryCode: countryCode,
-          alertType: alertType,
-        );
+        // SOS/Crash are urgent - skip WhatsApp here too, rely on guaranteed FCM push
+        if (alertType != 'SOS' && alertType != 'CRASH') {
+          await sendWhatsAppAlert(
+            phone: phone,
+            userName: riderName,
+            lat: lat,
+            lng: lng,
+            countryCode: countryCode,
+            alertType: alertType,
+            customMessage: customMessage,
+          );
+        }
         // Send FCM push notification
         final fcmToken = (data['fcmToken'] ?? '').toString().trim();
         if (fcmToken.isNotEmpty) {
@@ -2597,7 +2612,7 @@ class _SOSScreenState extends State<SOSScreen>
 
   Future<void> _sendWhatsAppAlerts(
       Map<String, dynamic> profile, double lat, double lng,
-      {String alertType = 'SOS'}) async {
+      {String alertType = 'SOS', String? customMessage}) async {
     final userName = profile['name'] ?? 'User';
     final countryCode = (profile['countryCode'] ?? '27').toString();
     final riderPhone = (profile['mobilePhone'] ?? '').toString().trim();
@@ -2617,6 +2632,7 @@ class _SOSScreenState extends State<SOSScreen>
           countryCode: countryCode,
           alertType: alertType,
           riderPhone: riderPhone,
+          customMessage: customMessage,
         );
       }
     }
@@ -2699,7 +2715,7 @@ class _SOSScreenState extends State<SOSScreen>
       // Update family tracking status
       await _updateTrackingStatus(deviceId, 'SOS', lat: pos.latitude, lng: pos.longitude);
 
-      await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude);
+      // SOS/Crash are urgent - rely on guaranteed FCM push, not WhatsApp (requires a manual tap to send)
       // Notify the whole company, respecting radius preferences
       await _notifyCompany(
         widget.company.id,
@@ -2737,28 +2753,69 @@ class _SOSScreenState extends State<SOSScreen>
       ),
     );
   }
-  Future<void> _sendHelpAlert(String type, String label) async {
-    // Confirm before sending
-    final confirm = await showDialog<bool>(
+  Future<String?> _showOtherAlertDialog() async {
+    final textController = TextEditingController();
+    final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: Text('Send $label Alert?'),
-        content: Text('This will notify your guide that you need $label assistance. Are you sure?'),
+        title: const Text('Describe the issue'),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          maxLines: 3,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'What do you need help with?',
+            hintStyle: TextStyle(color: Colors.grey),
+          ),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Yes, Send Alert'),
+            onPressed: () => Navigator.of(ctx).pop(
+                textController.text.trim().isEmpty ? 'Other assistance needed' : textController.text.trim()),
+            child: const Text('Send Alert'),
           ),
         ],
       ),
     );
-    if (confirm != true) return;
+    return result;
+  }
+
+  Future<void> _sendHelpAlert(String type, String label) async {
+    String customMessage = '';
+    if (type == 'OTHER') {
+      final message = await _showOtherAlertDialog();
+      if (message == null) return;
+      customMessage = message;
+    } else {
+      // Confirm before sending
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: Text('Send $label Alert?'),
+          content: Text('This will notify your guide that you need $label assistance. Are you sure?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Yes, Send Alert'),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
     final connected = await hasInternet();
     if (!connected) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -2782,9 +2839,11 @@ class _SOSScreenState extends State<SOSScreen>
         'profile': profile,
         'companyId': widget.company.id,
         'deviceId': deviceId,
+        'customMessage': customMessage,
       });
       Vibration.vibrate(duration: 500);
-      await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude, alertType: type);
+      await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude,
+          alertType: type, customMessage: customMessage.isNotEmpty ? customMessage : null);
       // Notify the whole company, respecting radius preferences
       await _notifyCompany(
         widget.company.id,
@@ -2792,6 +2851,7 @@ class _SOSScreenState extends State<SOSScreen>
         pos.latitude,
         pos.longitude,
         alertType: type,
+        customMessage: customMessage.isNotEmpty ? customMessage : null,
       );
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3249,7 +3309,7 @@ class _SOSScreenState extends State<SOSScreen>
                     Row(children: [
                       Expanded(child: _helpButton('Breakdown', Icons.build, Colors.purple, 'BREAKDOWN')),
                       const SizedBox(width: 8),
-                      Expanded(child: _helpButton('Medical', Icons.medical_services, Colors.red, 'MEDICAL')),
+                      Expanded(child: _helpButton('Other', Icons.more_horiz, Colors.grey, 'OTHER')),
                     ]),
                   ],
                   // Hidden test button  -  long press the toggle container label
@@ -3733,6 +3793,139 @@ class _HUDScreenState extends State<HUDScreen>
 // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // OFFICER DASHBOARD
 // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
+class AlertHistoryScreen extends StatefulWidget {
+  final CompanyConfig company;
+  const AlertHistoryScreen({super.key, required this.company});
+  @override
+  State<AlertHistoryScreen> createState() => _AlertHistoryScreenState();
+}
+
+class _AlertHistoryScreenState extends State<AlertHistoryScreen> {
+  String _formatTimestamp(dynamic ts) {
+    if (ts == null || ts is! Timestamp) return '';
+    final dt = ts.toDate();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${months[dt.month - 1]} ${dt.day}, $h:$m';
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'RESOLVED':
+        return Colors.green;
+      case 'CANCELLED':
+        return Colors.grey;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(title: const Text('Alert History')),
+      body: FutureBuilder<QuerySnapshot>(
+        future: FirebaseFirestore.instance
+            .collection('alerts')
+            .where('companyId', isEqualTo: widget.company.id)
+            .orderBy('createdAt', descending: true)
+            .limit(100)
+            .get(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text('Error loading history: ${snapshot.error}',
+                    style: const TextStyle(color: Colors.red)),
+              ),
+            );
+          }
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return const Center(
+                child: Text('No alerts yet', style: TextStyle(color: Colors.grey)));
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final data = docs[index].data() as Map<String, dynamic>;
+              final userName = data['userName'] ?? 'Rider';
+              final helpType = data['helpType'] ?? 'SOS';
+              final status = data['status'] ?? 'ACTIVE';
+              final timeStr = _formatTimestamp(data['createdAt']);
+              final responders = (data['responders'] as List?)
+                      ?.whereType<Map>()
+                      .map((r) => (r['name'] ?? '').toString())
+                      .where((n) => n.isNotEmpty)
+                      .toList() ??
+                  <String>[];
+              final resolvedBy = (data['resolvedBy'] ?? '').toString();
+              return Card(
+                color: Colors.grey[900],
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text('$helpType — $userName',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15)),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                                color: _statusColor(status).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(6)),
+                            child: Text(status,
+                                style: TextStyle(
+                                    color: _statusColor(status),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(timeStr, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      if (responders.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text('Responded: ${responders.join(', ')}',
+                              style: const TextStyle(color: Colors.orange, fontSize: 12)),
+                        ),
+                      if (resolvedBy.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text('Resolved by: $resolvedBy',
+                              style: const TextStyle(color: Colors.green, fontSize: 12)),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// OFFICER DASHBOARD
+// ────────────────────────────────────────────────────────────────────────────
 class OfficerDashboard extends StatefulWidget {
   final CompanyConfig company;
   final double responseRadiusKm;

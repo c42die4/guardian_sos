@@ -18,6 +18,8 @@ exports.onAlertCreated = onDocumentCreated("alerts/{alertId}", async (event) => 
   const helpType = alert.helpType || "SOS";
   const lat = alert.lat || 0;
   const lng = alert.lng || 0;
+  const customMessage = alert.customMessage || "";
+  const isUrgent = helpType === "SOS" || helpType === "CRASH";
 
   if (!companyId) {
     console.log("No companyId on alert, skipping");
@@ -47,6 +49,10 @@ exports.onAlertCreated = onDocumentCreated("alerts/{alertId}", async (event) => 
     case "MEDICAL":
       title = `MEDICAL EMERGENCY — ${userName}`;
       body = "Needs medical help. Open app to respond.";
+      break;
+    case "OTHER":
+      title = `HELP NEEDED \u2014 ${userName}`;
+      body = customMessage || "Needs assistance. Open app to respond.";
       break;
     default:
       title = `EMERGENCY SOS — ${userName}`;
@@ -103,9 +109,8 @@ exports.onAlertCreated = onDocumentCreated("alerts/{alertId}", async (event) => 
       priority: "high",
       notification: {
         channelId: "sos_alerts",
-        sound: "siren",
-        priority: "max",
-        defaultSound: false,
+        priority: isUrgent ? "max" : "high",
+        ...(isUrgent ? {sound: "siren", defaultSound: false} : {defaultSound: true}),
       },
     },
     tokens: tokens,
