@@ -23,6 +23,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 
 Uint8List _generateBeepTone({int frequency = 900, int durationMs = 150, int sampleRate = 44100}) {
   final int numSamples = (sampleRate * durationMs / 1000).round();
@@ -1749,6 +1750,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _pickContactInto(
+      TextEditingController nameCtrl, TextEditingController phoneCtrl) async {
+    try {
+      final granted = await FlutterContacts.requestPermission(readonly: true);
+      if (!granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Contacts permission denied')));
+        }
+        return;
+      }
+      final contact = await FlutterContacts.openExternalPick();
+      if (contact == null) return;
+      if (mounted) {
+        setState(() {
+          nameCtrl.text = contact.displayName;
+          if (contact.phones.isNotEmpty) {
+            phoneCtrl.text = contact.phones.first.number;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open contacts: $e')));
+      }
+    }
+  }
+
   Widget _waContactBlock(String label, TextEditingController nameCtrl,
       TextEditingController phoneCtrl) {
     return Container(
@@ -1764,9 +1794,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(children: [
             const Icon(Icons.person, color: Colors.green, size: 16),
             const SizedBox(width: 6),
-            Text(label,
-                style: const TextStyle(
-                    color: Colors.green, fontWeight: FontWeight.bold)),
+            Expanded(
+              child: Text(label,
+                  style: const TextStyle(
+                      color: Colors.green, fontWeight: FontWeight.bold)),
+            ),
+            IconButton(
+              icon: const Icon(Icons.contact_page, color: Colors.green, size: 20),
+              tooltip: 'Pick from contacts',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: () => _pickContactInto(nameCtrl, phoneCtrl),
+            ),
           ]),
           const SizedBox(height: 8),
           TextFormField(
@@ -1865,12 +1904,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       maxLines: 2),
                   _sectionHeader(
                       "Emergency Contact 1", Icons.contact_phone),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          _pickContactInto(_contact1NameCtrl, _contact1PhoneCtrl),
+                      icon: const Icon(Icons.contact_page, size: 18, color: Colors.orange),
+                      label: const Text('Pick from Contacts',
+                          style: TextStyle(color: Colors.orange, fontSize: 12)),
+                    ),
+                  ),
                   _field("Contact Name", _contact1NameCtrl),
                   _field("Phone Number", _contact1PhoneCtrl,
                       keyboardType: TextInputType.phone),
                   _field("Relationship", _contact1RelCtrl),
                   _sectionHeader(
                       "Emergency Contact 2", Icons.contact_phone),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          _pickContactInto(_contact2NameCtrl, _contact2PhoneCtrl),
+                      icon: const Icon(Icons.contact_page, size: 18, color: Colors.orange),
+                      label: const Text('Pick from Contacts',
+                          style: TextStyle(color: Colors.orange, fontSize: 12)),
+                    ),
+                  ),
                   _field("Contact Name", _contact2NameCtrl),
                   _field("Phone Number", _contact2PhoneCtrl,
                       keyboardType: TextInputType.phone),
