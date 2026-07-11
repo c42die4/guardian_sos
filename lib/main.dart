@@ -2533,7 +2533,7 @@ class _SOSScreenState extends State<SOSScreen>
         t.cancel();
         setState(() => _crashCountdownActive = false);
         // Auto-fire SOS
-        _triggerSOS();
+        _triggerSOS(isCrash: true);
       }
     });
   }
@@ -2697,7 +2697,7 @@ class _SOSScreenState extends State<SOSScreen>
     }
   }
 
-  void _triggerSOS() async {
+  void _triggerSOS({bool isCrash = false}) async {
     _stopHolding();
 
     final connected = await hasInternet();
@@ -2760,6 +2760,7 @@ class _SOSScreenState extends State<SOSScreen>
         'profile': profile,
         'companyId': widget.company.id,
         'deviceId': deviceId,
+        'helpType': isCrash ? 'CRASH' : 'SOS',
       });
 
       _activeAlertId = doc.id;
@@ -2781,7 +2782,7 @@ class _SOSScreenState extends State<SOSScreen>
         profile['name'] ?? 'Rider',
         pos.latitude,
         pos.longitude,
-        alertType: 'SOS',
+        alertType: isCrash ? 'CRASH' : 'SOS',
       );
     } catch (e) {
       debugPrint("SOS Error: $e");
