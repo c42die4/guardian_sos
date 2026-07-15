@@ -535,6 +535,8 @@ class CompanyConfig {
   final bool isTrial;
   final String trialEnds;
   final String companyType;
+  final bool allowDependents;
+  final int maxDependentsPerMember;
 
   bool get isAdventure => companyType == 'adventure';
 
@@ -549,6 +551,8 @@ class CompanyConfig {
     this.isTrial = false,
     this.trialEnds = '',
     this.companyType = 'standard',
+    this.allowDependents = false,
+    this.maxDependentsPerMember = 4,
   });
 
   bool get isTrialExpired {
@@ -579,6 +583,8 @@ class CompanyConfig {
       isTrial: data['isTrial'] ?? false,
       trialEnds: data['trialEnds'] ?? '',
       companyType: data['companyType'] ?? 'standard',
+      allowDependents: data['allowDependents'] ?? false,
+      maxDependentsPerMember: data['maxDependentsPerMember'] ?? 4,
     );
   }
 }
@@ -932,6 +938,123 @@ class _CompanyRegistrationScreenState
   bool _loading = false;
   String? _error;
 
+  Future<void> _registerAsDependent(
+      QueryDocumentSnapshot<Map<String, dynamic>> linkedProfileDoc) async {
+    try {
+      final linkedData = linkedProfileDoc.data();
+      final linkedMemberId = linkedProfileDoc.id;
+      final linkedCompanyId = (linkedData['companyId'] ?? '').toString();
+      final linkedMemberName = (linkedData['name'] ?? 'this member').toString();
+
+      if (linkedCompanyId.isEmpty) {
+        setState(() {
+          _error =
+              "This family code isn't linked to a company. Please contact your administrator.";
+          _loading = false;
+        });
+        return;
+      }
+
+      final companyDoc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(linkedCompanyId)
+          .get();
+
+      if (!companyDoc.exists) {
+        setState(() {
+          _error =
+              "Could not find the linked company. Please contact your administrator.";
+          _loading = false;
+        });
+        return;
+      }
+
+      final company =
+          CompanyConfig.fromFirestore(companyDoc.id, companyDoc.data()!);
+
+      if (!company.allowDependents) {
+        setState(() {
+          _error = "Family accounts are not currently available for this company.";
+          _loading = false;
+        });
+        return;
+      }
+
+      final existingDependents = await FirebaseFirestore.instance
+          .collection('devices')
+          .where('linkedMemberId', isEqualTo: linkedMemberId)
+          .where('role', isEqualTo: 'dependent')
+          .get();
+      final existingActiveDependents = existingDependents.docs
+          .where((d) => d.data()['removedByMember'] != true)
+          .toList();
+
+      final deviceId = await getDeviceId();
+      final alreadyRegistered =
+          existingActiveDependents.any((d) => d.id == deviceId);
+
+      if (!alreadyRegistered &&
+          existingActiveDependents.length >= company.maxDependentsPerMember) {
+        setState(() {
+          _error =
+              "Maximum family members reached (${company.maxDependentsPerMember}). Please contact $linkedMemberName.";
+          _loading = false;
+        });
+        return;
+      }
+
+      if (!mounted) return;
+      final relationship = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => SimpleDialog(
+          backgroundColor: Colors.grey[900],
+          title: Text('Your relationship to $linkedMemberName'),
+          children: [
+            for (final rel in ['Wife', 'Husband', 'Son', 'Daughter', 'Other'])
+              SimpleDialogOption(
+                onPressed: () => Navigator.of(ctx).pop(rel),
+                child: Text(rel, style: const TextStyle(color: Colors.white)),
+              ),
+          ],
+        ),
+      );
+
+      if (relationship == null) {
+        setState(() => _loading = false);
+        return;
+      }
+
+      await FirebaseFirestore.instance.collection('devices').doc(deviceId).set({
+        'companyId': companyDoc.id,
+        'role': 'dependent',
+        'linkedMemberId': linkedMemberId,
+        'linkedMemberName': linkedMemberName,
+        'relationship': relationship,
+        'registeredAt': FieldValue.serverTimestamp(),
+        'lastSeen': FieldValue.serverTimestamp(),
+        'isActive': true,
+      });
+
+      await saveCompanyId(companyDoc.id);
+      await saveRole('dependent');
+      await saveCompanyData(company);
+      currentCompany = company;
+      currentRole = 'dependent';
+      await saveFcmToken(deviceId, companyDoc.id, 'dependent');
+
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => AppShell(company: company)));
+      }
+    } catch (e) {
+      setState(() {
+        _error = "Failed to register as family member: $e";
+        _loading = false;
+      });
+    }
+  }
+
   Future<void> _register() async {
     final code = _codeCtrl.text.trim().toUpperCase();
     if (code.isEmpty) {
@@ -943,6 +1066,16 @@ class _CompanyRegistrationScreenState
       _error = null;
     });
     try {
+      final familyQuery = await FirebaseFirestore.instance
+          .collection('profiles')
+          .where('familyCode', isEqualTo: code)
+          .limit(1)
+          .get();
+      if (familyQuery.docs.isNotEmpty) {
+        await _registerAsDependent(familyQuery.docs.first);
+        return;
+      }
+
       var query = await FirebaseFirestore.instance
           .collection('companies')
           .where('officerCode', isEqualTo: code)
@@ -1529,7 +1662,18 @@ class _AppShellState extends State<AppShell> {
                   setState(() {});
                 },
               ),
-            ...[
+            if (currentCompany?.allowDependents == true &&
+                currentRole != 'dependent')
+              IconButton(
+                icon: const Icon(Icons.family_restroom),
+                tooltip: 'Family',
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) =>
+                            FamilyScreen(company: currentCompany!))),
+              ),
+            if (currentRole != 'dependent') ...[
               // Radius button  -  only show in officer mode
               if (isOfficerMode)
                 IconButton(
@@ -1619,6 +1763,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _mobilePhoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   int _notifyRadiusKm = 0; // 0 = everyone/unlimited
+  String _familyCode = '';
+
+  String _generateFamilyCode() {
+    final rand = math.Random();
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final code = List.generate(5, (_) => chars[rand.nextInt(chars.length)]).join();
+    return 'FAM-$code';
+  }
+
+  Future<void> _inviteFamilyMember() async {
+    try {
+      final granted =
+          await FlutterContacts.requestPermission(readonly: true);
+      if (!granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Contacts permission denied')));
+        }
+        return;
+      }
+      final contact = await FlutterContacts.openExternalPick();
+      if (contact == null || contact.phones.isEmpty) return;
+      String cleaned = contact.phones.first.number
+          .replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+      if (cleaned.startsWith('00')) cleaned = cleaned.substring(2);
+      if (cleaned.startsWith('0')) cleaned = '27' + cleaned.substring(1);
+      if (!cleaned.startsWith('27')) cleaned = '27' + cleaned;
+      final message = Uri.encodeComponent(
+          "Hi ${contact.displayName}! Join our club safety app so we can help "
+          "if you're ever in trouble.\n\n"
+          "Download: https://sos.cyberwarriors.co.za/join/highway-devils.html\n\n"
+          "Your family code: $_familyCode");
+      final uri = Uri.parse('whatsapp://send?phone=$cleaned&text=$message');
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not send invite: $e')));
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -1658,6 +1845,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _mobilePhoneCtrl.text = d['mobilePhone'] ?? '';
       _emailCtrl.text = d['email'] ?? '';
       _notifyRadiusKm = (d['notifyRadiusKm'] is int) ? d['notifyRadiusKm'] : 0;
+      _familyCode = d['familyCode'] ?? '';
+    }
+    if (_familyCode.isEmpty &&
+        currentCompany?.allowDependents == true &&
+        currentRole != 'dependent') {
+      _familyCode = _generateFamilyCode();
+      await FirebaseFirestore.instance.collection('profiles').doc(id).set(
+          {'familyCode': _familyCode}, SetOptions(merge: true));
     }
     setState(() => _loading = false);
   }
@@ -1692,6 +1887,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'email': _emailCtrl.text.trim(),
       'notifyRadiusKm': _notifyRadiusKm,
       'companyId': currentCompany?.id ?? '',
+      'familyCode': _familyCode,
       'updatedAt': FieldValue.serverTimestamp(),
     });
     setState(() => _saving = false);
@@ -1949,6 +2145,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       "Contact 2", _wa2NameCtrl, _wa2PhoneCtrl),
                   _waContactBlock(
                       "Contact 3", _wa3NameCtrl, _wa3PhoneCtrl),
+                  if (currentCompany?.allowDependents == true &&
+                      currentRole != 'dependent')
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.blue[700]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            const Icon(Icons.family_restroom,
+                                color: Colors.blue, size: 18),
+                            const SizedBox(width: 6),
+                            const Text('Family Members',
+                                style: TextStyle(
+                                    color: Colors.blue,
+                                    fontWeight: FontWeight.bold)),
+                          ]),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Share this code with your spouse or children so they can install the app and get help too.',
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black26,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                      _familyCode.isEmpty
+                                          ? 'Generating...'
+                                          : _familyCode,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          letterSpacing: 1.5)),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.copy, color: Colors.blue),
+                                tooltip: 'Copy code',
+                                onPressed: _familyCode.isEmpty
+                                    ? null
+                                    : () {
+                                        Clipboard.setData(
+                                            ClipboardData(text: _familyCode));
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                                content: Text('Code copied')));
+                                      },
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.person_add_alt,
+                                    color: Colors.green),
+                                tooltip: 'Invite via WhatsApp',
+                                onPressed: _familyCode.isEmpty
+                                    ? null
+                                    : _inviteFamilyMember,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   _sectionHeader(
                     "Notification Range",
                     Icons.notifications_active,
@@ -2345,6 +2617,8 @@ class _SOSScreenState extends State<SOSScreen>
     with SingleTickerProviderStateMixin {
   bool _isHolding = false;
   bool _sosActive = false;
+  String _dependentRelationship = '';
+  String _dependentLinkedMemberName = '';
   double _progress = 0.0;
   Timer? _timer;
   late AnimationController _controller;
@@ -2747,6 +3021,16 @@ class _SOSScreenState extends State<SOSScreen>
           desiredAccuracy: LocationAccuracy.high);
       final profile = await _getProfileSnapshot();
       final deviceId = await getDeviceId();
+      if (currentRole == 'dependent' &&
+          (_dependentRelationship.isEmpty || _dependentLinkedMemberName.isEmpty)) {
+        final deviceDoc = await FirebaseFirestore.instance
+            .collection('devices')
+            .doc(deviceId)
+            .get();
+        _dependentRelationship = (deviceDoc.data()?['relationship'] ?? '').toString();
+        _dependentLinkedMemberName =
+            (deviceDoc.data()?['linkedMemberName'] ?? '').toString();
+      }
 
       DocumentReference doc =
           await FirebaseFirestore.instance.collection('alerts').add({
@@ -2761,6 +3045,9 @@ class _SOSScreenState extends State<SOSScreen>
         'companyId': widget.company.id,
         'deviceId': deviceId,
         'helpType': isCrash ? 'CRASH' : 'SOS',
+        'isDependent': currentRole == 'dependent',
+        'relationship': _dependentRelationship,
+        'linkedMemberName': _dependentLinkedMemberName,
       });
 
       _activeAlertId = doc.id;
@@ -3927,6 +4214,9 @@ class _AlertHistoryScreenState extends State<AlertHistoryScreen> {
                       .toList() ??
                   <String>[];
               final resolvedBy = (data['resolvedBy'] ?? '').toString();
+              final isDependent = data['isDependent'] == true;
+              final relationship = (data['relationship'] ?? '').toString();
+              final linkedMemberName = (data['linkedMemberName'] ?? '').toString();
               return Card(
                 color: Colors.grey[900],
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -3938,7 +4228,12 @@ class _AlertHistoryScreenState extends State<AlertHistoryScreen> {
                       Row(
                         children: [
                           Expanded(
-                            child: Text('$helpType — $userName',
+                          child: Text(
+                              isDependent &&
+                                      relationship.isNotEmpty &&
+                                      linkedMemberName.isNotEmpty
+                                  ? '$helpType \u2014 $userName ($relationship of $linkedMemberName)'
+                                  : '$helpType \u2014 $userName',
                                 style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -3979,6 +4274,213 @@ class _AlertHistoryScreenState extends State<AlertHistoryScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// OFFICER DASHBOARD
+// ────────────────────────────────────────────────────────────────────────────
+class FamilyScreen extends StatefulWidget {
+  final CompanyConfig company;
+  const FamilyScreen({super.key, required this.company});
+  @override
+  State<FamilyScreen> createState() => _FamilyScreenState();
+}
+
+class _FamilyScreenState extends State<FamilyScreen> {
+  String _familyCode = '';
+  bool _loading = true;
+  List<Map<String, dynamic>> _dependents = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final deviceId = await getDeviceId();
+    final profileDoc = await FirebaseFirestore.instance
+        .collection('profiles')
+        .doc(deviceId)
+        .get();
+    _familyCode = (profileDoc.data()?['familyCode'] ?? '').toString();
+    final depSnap = await FirebaseFirestore.instance
+        .collection('devices')
+        .where('linkedMemberId', isEqualTo: deviceId)
+        .where('role', isEqualTo: 'dependent')
+        .get();
+    _dependents = depSnap.docs
+        .where((d) => d.data()['removedByMember'] != true)
+        .map((d) => {'id': d.id, ...d.data()})
+        .toList();
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _inviteFamilyMember() async {
+    try {
+      final granted =
+          await FlutterContacts.requestPermission(readonly: true);
+      if (!granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Contacts permission denied')));
+        }
+        return;
+      }
+      final contact = await FlutterContacts.openExternalPick();
+      if (contact == null || contact.phones.isEmpty) return;
+      String cleaned = contact.phones.first.number
+          .replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+      if (cleaned.startsWith('00')) cleaned = cleaned.substring(2);
+      if (cleaned.startsWith('0')) cleaned = '27' + cleaned.substring(1);
+      if (!cleaned.startsWith('27')) cleaned = '27' + cleaned;
+      final message = Uri.encodeComponent(
+          "Hi ${contact.displayName}! Join our club safety app so we can help "
+          "if you're ever in trouble.\n\n"
+          "Download: https://sos.cyberwarriors.co.za/join/highway-devils.html\n\n"
+          "Your family code: $_familyCode");
+      final uri = Uri.parse('whatsapp://send?phone=$cleaned&text=$message');
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not send invite: $e')));
+      }
+    }
+  }
+
+  Future<void> _removeDependent(String deviceId, String relationship) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Remove family member?'),
+        content: Text(
+            '$relationship will no longer be able to use the app under your account. This frees up a slot.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await FirebaseFirestore.instance
+        .collection('devices')
+        .doc(deviceId)
+        .update({'removedByMember': true, 'isActive': false});
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxSlots = widget.company.maxDependentsPerMember;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(title: const Text('Family Members')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.blue[700]!),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Your family code',
+                          style: TextStyle(
+                              color: Colors.blue, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.black26,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                  _familyCode.isEmpty ? '...' : _familyCode,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      letterSpacing: 1.5)),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.copy, color: Colors.blue),
+                            onPressed: _familyCode.isEmpty
+                                ? null
+                                : () {
+                                    Clipboard.setData(
+                                        ClipboardData(text: _familyCode));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                            content: Text('Code copied')));
+                                  },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.person_add_alt,
+                                color: Colors.green),
+                            onPressed: _familyCode.isEmpty
+                                ? null
+                                : _inviteFamilyMember,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('${_dependents.length} of $maxSlots family members added',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                const SizedBox(height: 8),
+                if (_dependents.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                        child: Text('No family members yet',
+                            style: TextStyle(color: Colors.grey))),
+                  ),
+                for (final dep in _dependents)
+                  Card(
+                    color: Colors.grey[900],
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: const Icon(Icons.person, color: Colors.orange),
+                      title: Text(
+                          (dep['relationship'] ?? 'Family member').toString(),
+                          style: const TextStyle(color: Colors.white)),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.remove_circle_outline,
+                            color: Colors.red),
+                        onPressed: () => _removeDependent(
+                            dep['id'],
+                            (dep['relationship'] ?? 'this family member')
+                                .toString()),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 }
@@ -5097,7 +5599,11 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                       ? Colors.orange
                                       : color),
                               title: Text(
-                                data['userName'] ?? 'User',
+                                (data['isDependent'] == true &&
+                                        (data['relationship'] ?? '').toString().isNotEmpty &&
+                                        (data['linkedMemberName'] ?? '').toString().isNotEmpty)
+                                    ? '${data['userName'] ?? 'User'} (${data['relationship']} of ${data['linkedMemberName']})'
+                                    : data['userName'] ?? 'User',
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                     fontWeight: isSelected
