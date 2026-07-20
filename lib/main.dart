@@ -24,6 +24,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 Uint8List _generateBeepTone({int frequency = 900, int durationMs = 150, int sampleRate = 44100}) {
   final int numSamples = (sampleRate * durationMs / 1000).round();
@@ -419,8 +420,18 @@ class LocationTaskHandler extends TaskHandler {
 
   @override
   void onRepeatEvent(DateTime timestamp) async {
-    if (_alertId == null) return;
     try {
+      // Always re-read the latest alertId/companyId, in case the service was
+      // restarted for a new alert rather than freshly started (onStart may not
+      // re-run on restartService, which previously left this pointing at a
+      // stale/already-resolved alert).
+      final latestAlertId =
+          await FlutterForegroundTask.getData<String>(key: 'alertId');
+      if (latestAlertId != null) _alertId = latestAlertId;
+      final latestCompanyId =
+          await FlutterForegroundTask.getData<String>(key: 'companyId');
+      if (latestCompanyId != null) _companyId = latestCompanyId;
+      if (_alertId == null) return;
       // Check if alert is still active  -  stop service if resolved or cancelled
       final alertSnap = await FirebaseFirestore.instance
           .collection('alerts')
@@ -445,8 +456,22 @@ class LocationTaskHandler extends TaskHandler {
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) return;
 
-      Position pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high,
+            timeLimit: const Duration(seconds: 15));
+      } on TimeoutException {
+        debugPrint('Location fix timed out after 15s');
+        await FirebaseFirestore.instance
+            .collection('alerts')
+            .doc(_alertId)
+            .update({
+          'lastTrackingAttempt': FieldValue.serverTimestamp(),
+          'lastTrackingError': 'GPS timeout (15s)',
+        }).catchError((_) {});
+        return;
+      }
 
       await FirebaseFirestore.instance
           .collection('alerts')
@@ -455,6 +480,8 @@ class LocationTaskHandler extends TaskHandler {
         'lat': pos.latitude,
         'lng': pos.longitude,
         'timestamp': FieldValue.serverTimestamp(),
+        'lastTrackingAttempt': FieldValue.serverTimestamp(),
+        'lastTrackingError': null,
       });
 
       FlutterForegroundTask.updateService(
@@ -506,15 +533,17 @@ Future<void> startLocationService(String alertId, String companyId) async {
   await FlutterForegroundTask.saveData(key: 'alertId', value: alertId);
   await FlutterForegroundTask.saveData(key: 'companyId', value: companyId);
 
+  // Always do a clean stop+start rather than restartService(), which does
+  // not reliably re-establish the repeating location-update timer - it was
+  // only firing once for any alert after the first one in a session.
   if (await FlutterForegroundTask.isRunningService) {
-    await FlutterForegroundTask.restartService();
-  } else {
-    await FlutterForegroundTask.startService(
-      notificationTitle: 'SOS Active',
-      notificationText: 'Sharing your location with officers...',
-      callback: startCallback,
-    );
+    await FlutterForegroundTask.stopService();
   }
+  await FlutterForegroundTask.startService(
+    notificationTitle: 'SOS Active',
+    notificationText: 'Sharing your location with officers...',
+    callback: startCallback,
+  );
 }
 
 Future<void> stopLocationService() async {
@@ -1490,6 +1519,31 @@ class _AppShellState extends State<AppShell> {
   Future<void> _checkProfile() async {
     // On web, officers skip profile setup and go straight to map
     if (kIsWeb) {
+      final urlCode = Uri.base.queryParameters['code'];
+      if (urlCode != null && urlCode.trim().isNotEmpty) {
+        final urlQuery = await FirebaseFirestore.instance
+            .collection('companies')
+            .where('officerCode', isEqualTo: urlCode.trim().toUpperCase())
+            .limit(1)
+            .get();
+        if (urlQuery.docs.isNotEmpty) {
+          final companyDoc = urlQuery.docs.first;
+          final company = CompanyConfig.fromFirestore(
+              companyDoc.id, companyDoc.data());
+          final deviceId = await getDeviceId();
+          await saveCompanyId(companyDoc.id);
+          await saveRole('officer');
+          await saveCompanyData(company);
+          currentCompany = company;
+          currentRole = 'officer';
+          await saveFcmToken(deviceId, companyDoc.id, 'officer');
+          setState(() {
+            _checkingProfile = false;
+            isOfficerMode = true;
+          });
+          return;
+        }
+      }
       final savedRole = await getSavedRole();
       if (savedRole == 'officer') {
         setState(() {
@@ -1529,7 +1583,8 @@ class _AppShellState extends State<AppShell> {
               Text('Response Radius', style: TextStyle(color: Colors.white)),
             ],
           ),
-          content: Column(
+          content: SingleChildScrollView(
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
@@ -1564,7 +1619,8 @@ class _AppShellState extends State<AppShell> {
                 ],
               ),
             ],
-          ),
+              ),
+            ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
@@ -2665,6 +2721,7 @@ class _SOSScreenState extends State<SOSScreen>
     // Start listening for incoming notifications
     _startNotificationListener();
     _checkForActiveAlert();
+    _checkHuaweiWarning();
   }
 
   Future<void> _checkForActiveAlert() async {
@@ -2695,6 +2752,54 @@ class _SOSScreenState extends State<SOSScreen>
       }
     } catch (e) {
       debugPrint('Check active alert error: $e');
+    }
+  }
+
+  Future<void> _checkHuaweiWarning() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('huaweiWarningDismissed') == true) return;
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+      final manufacturer = androidInfo.manufacturer.toLowerCase();
+      if (!manufacturer.contains('huawei') && !manufacturer.contains('honor')) {
+        return;
+      }
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Row(children: [
+            Icon(Icons.battery_alert, color: Colors.orange),
+            SizedBox(width: 8),
+            Expanded(
+                child: Text('Important Battery Setting',
+                    style: TextStyle(color: Colors.white, fontSize: 16))),
+          ]),
+          content: const Text(
+            'Huawei/Honor phones can block live location sharing unless a setting is changed.\n\n'
+            'To fix this:\n'
+            'Settings \u2192 Battery \u2192 App launch \u2192 find Guardian SOS \u2192 switch to '
+            '"Manage manually" \u2192 enable all three toggles.\n\n'
+            'Without this, your location may stop updating during an emergency.',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                final p = await SharedPreferences.getInstance();
+                await p.setBool('huaweiWarningDismissed', true);
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: const Text("Got it, don't show again",
+                  style: TextStyle(color: Colors.orange)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint('Huawei check error: $e');
     }
   }
 
@@ -3174,7 +3279,7 @@ class _SOSScreenState extends State<SOSScreen>
           desiredAccuracy: LocationAccuracy.high);
       final profile = await _getProfileSnapshot();
       final deviceId = await getDeviceId();
-      await FirebaseFirestore.instance.collection('alerts').add({
+      final doc = await FirebaseFirestore.instance.collection('alerts').add({
         'userName': profile['name'] ?? 'Rider',
         'mobilePhone': profile['mobilePhone'] ?? '',
         'lat': pos.latitude,
@@ -3188,6 +3293,7 @@ class _SOSScreenState extends State<SOSScreen>
         'deviceId': deviceId,
         'customMessage': customMessage,
       });
+      await startLocationService(doc.id, widget.company.id);
       Vibration.vibrate(duration: 500);
       await _sendWhatsAppAlerts(profile, pos.latitude, pos.longitude,
           alertType: type, customMessage: customMessage.isNotEmpty ? customMessage : null);
@@ -4307,6 +4413,17 @@ class _FamilyScreenState extends State<FamilyScreen> {
         .doc(deviceId)
         .get();
     _familyCode = (profileDoc.data()?['familyCode'] ?? '').toString();
+    if (_familyCode.isEmpty) {
+      final rand = math.Random();
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      final code =
+          List.generate(5, (_) => chars[rand.nextInt(chars.length)]).join();
+      _familyCode = 'FAM-$code';
+      await FirebaseFirestore.instance
+          .collection('profiles')
+          .doc(deviceId)
+          .set({'familyCode': _familyCode}, SetOptions(merge: true));
+    }
     final depSnap = await FirebaseFirestore.instance
         .collection('devices')
         .where('linkedMemberId', isEqualTo: deviceId)
@@ -4488,6 +4605,62 @@ class _FamilyScreenState extends State<FamilyScreen> {
 // ────────────────────────────────────────────────────────────────────────────
 // OFFICER DASHBOARD
 // ────────────────────────────────────────────────────────────────────────────
+class _PulsingRespondButton extends StatefulWidget {
+  final bool amResponding;
+  final bool pulse;
+  final VoidCallback onPressed;
+  const _PulsingRespondButton({
+    required this.amResponding,
+    required this.pulse,
+    required this.onPressed,
+  });
+  @override
+  State<_PulsingRespondButton> createState() => _PulsingRespondButtonState();
+}
+
+class _PulsingRespondButtonState extends State<_PulsingRespondButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final button = ElevatedButton.icon(
+      icon: Icon(widget.amResponding ? Icons.close : Icons.directions_run,
+          color: Colors.black),
+      label: Text(widget.amResponding ? "UN-RESPOND" : "RESPOND",
+          style: const TextStyle(
+              color: Colors.black, fontWeight: FontWeight.bold)),
+      style: ElevatedButton.styleFrom(
+          backgroundColor: widget.amResponding ? Colors.grey : Colors.orange,
+          padding: const EdgeInsets.all(12)),
+      onPressed: widget.onPressed,
+    );
+    if (!widget.pulse) return button;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) => Opacity(
+        opacity: 0.6 + (_controller.value * 0.4),
+        child: child,
+      ),
+      child: button,
+    );
+  }
+}
+
 class OfficerDashboard extends StatefulWidget {
   final CompanyConfig company;
   final double responseRadiusKm;
@@ -4812,7 +4985,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
         title: const Text('Resolve Alert?'),
-        content: const Text('Are you sure the situation is under control?'),
+        content: const Text(
+            'This marks the alert as fully handled and removes it from the active list. The rider will see their alert as resolved. Only do this if the situation is genuinely over - this cannot be undone.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(false),
               child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
@@ -5305,7 +5479,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
             // Radius indicator badge
             if (widget.responseRadiusKm < 9000)
               Positioned(
-                bottom: 20,
+                bottom: 20 + MediaQuery.of(context).padding.bottom,
                 right: 16,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -5480,17 +5654,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                         [];
                                     final amResponding = _myDeviceId != null &&
                                         responders.any((r) => r['deviceId'] == _myDeviceId);
-                                    return ElevatedButton.icon(
-                                      icon: Icon(
-                                          amResponding ? Icons.close : Icons.directions_run,
-                                          color: Colors.black),
-                                      label: Text(amResponding ? "UN-RESPOND" : "RESPOND",
-                                          style: const TextStyle(
-                                              color: Colors.black, fontWeight: FontWeight.bold)),
-                                      style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              amResponding ? Colors.grey : Colors.orange,
-                                          padding: const EdgeInsets.all(12)),
+                                    return _PulsingRespondButton(
+                                      amResponding: amResponding,
+                                      pulse: responders.isEmpty,
                                       onPressed: () => amResponding
                                           ? _unmarkResponding(_selectedAlertId!)
                                           : _markResponding(_selectedAlertId!),
