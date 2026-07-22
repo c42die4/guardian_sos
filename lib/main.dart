@@ -110,14 +110,6 @@ void _handleNotificationAction(String? actionId, String? alertId) {
     _pendingCallNumber = number;
     return;
   }
-  if (actionId == 'responding') {
-    // Mark officer as responding in Firebase
-    FirebaseFirestore.instance.collection('alerts').doc(alertId).update({
-      'respondingOfficer': 'responding',
-      'respondingAt': FieldValue.serverTimestamp(),
-    }).catchError((_) {});
-    SOSEscalationManager.stopEscalation(alertId);
-}
 }
 
 Future<void> initNotifications() async {
@@ -156,12 +148,6 @@ Future<void> showAlertNotification(String name, String location,
         showsUserInterface: true,
         cancelNotification: false,
       ),
-    const AndroidNotificationAction(
-      'responding',
-      'RESPONDING',
-      showsUserInterface: true,
-      cancelNotification: true,
-    ),
 
   ];
 
@@ -830,7 +816,7 @@ Future<bool> hasInternet() async {
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  debugPrint('Background FCM message: \${message.notification?.title}');
+  debugPrint('Background FCM message: ${message.notification?.title}');
 }
 
 void main() async {
@@ -2822,8 +2808,8 @@ class _SOSScreenState extends State<SOSScreen>
         if (message.notification != null && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('\${message.notification!.title ?? "Alert"}: '
-                  '\${message.notification!.body ?? ""}'),
+              content: Text('${message.notification!.title ?? "Alert"}: '
+                  '${message.notification!.body ?? ""}'),
               backgroundColor: Colors.red[800],
               duration: const Duration(seconds: 6),
             ),
@@ -4645,7 +4631,7 @@ class _PulsingRespondButtonState extends State<_PulsingRespondButton>
           style: const TextStyle(
               color: Colors.black, fontWeight: FontWeight.bold)),
       style: ElevatedButton.styleFrom(
-          backgroundColor: widget.amResponding ? Colors.grey : Colors.orange,
+          backgroundColor: widget.amResponding ? Colors.grey : Colors.green,
           padding: const EdgeInsets.all(12)),
       onPressed: widget.onPressed,
     );
@@ -5291,6 +5277,46 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
 
+          // Follow the selected alert's live position on the map
+          if (_selectedAlertId != null) {
+            final selectedDocs =
+                alerts.where((d) => d.id == _selectedAlertId).toList();
+            String followResult;
+            if (selectedDocs.isEmpty) {
+              followResult = 'no matching doc in alerts list (count=${alerts.length})';
+            } else {
+              final freshData =
+                  selectedDocs.first.data() as Map<String, dynamic>;
+              final lat = (freshData['lat'] as num?)?.toDouble();
+              final lng = (freshData['lng'] as num?)?.toDouble();
+              if (lat == null || lng == null) {
+                followResult = 'lat/lng null on matched doc';
+              } else {
+                setState(() => _selectedAlert = freshData);
+                if (!_mapReady) {
+                  followResult = 'skipped - mapReady false';
+                } else {
+                  try {
+                    final currentZoom = _mapCtrl.camera.zoom;
+                    final targetZoom = currentZoom < 15 ? 16.0 : currentZoom;
+                    _mapCtrl.move(LatLng(lat, lng), targetZoom);
+                    followResult =
+                        'moved to $lat,$lng zoom $targetZoom (was $currentZoom)';
+                  } catch (e) {
+                    followResult = 'exception during move: $e';
+                  }
+                }
+              }
+            }
+            FirebaseFirestore.instance
+                .collection('alerts')
+                .doc(_selectedAlertId)
+                .update({
+              'debugCameraFollowAt': FieldValue.serverTimestamp(),
+              'debugCameraFollowResult': followResult,
+            }).catchError((_) {});
+          }
+
           final currentIds = alerts.map((d) => d.id).toSet();
           final newIds = currentIds.difference(_knownAlertIds);
           final isFirstLoad =
@@ -5508,45 +5534,19 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
             if (alerts.isNotEmpty)
               Positioned(
                 top: 20,
-                left: 20,
                 right: 20,
                 child: GestureDetector(
-                  onTap: () =>
-                      setState(() => _panelOpen = !_panelOpen),
-                  child: Card(
-                    color: color.withOpacity(0.85),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.list, color: Colors.white),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              "${alerts.length} ACTIVE ALERT${alerts.length > 1 ? 'S' : ''}  -  Tap to view list",
-                              style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: () => setState(
-                                () => _isMuted = !_isMuted),
-                            child: Icon(
-                              _isMuted
-                                  ? Icons.volume_off
-                                  : Icons.volume_up,
-                              color: _isMuted
-                                  ? Colors.orange
-                                  : Colors.white,
-                              size: 22,
-                            ),
-                          ),
-                        ],
-                      ),
+                  onTap: () => setState(() => _isMuted = !_isMuted),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.85),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _isMuted ? Icons.volume_off : Icons.volume_up,
+                      color: _isMuted ? Colors.orange : Colors.white,
+                      size: 22,
                     ),
                   ),
                 ),
@@ -5589,7 +5589,10 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                 IconButton(
                                   icon: const Icon(Icons.close),
                                   onPressed: () => setState(
-                                      () => _selectedAlert = null),
+                                      () {
+                                        _selectedAlert = null;
+                                        _selectedAlertId = null;
+                                      }),
                                 ),
                               ],
                             ),
@@ -5636,17 +5639,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                             Row(
                               children: [
                                 Expanded(
-                                  child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.navigation, color: Colors.white),
-                                    label: const Text("NAVIGATE", style: TextStyle(color: Colors.white)),
-                                    style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.blue,
-                                        padding: const EdgeInsets.all(12)),
-                                    onPressed: () => _navigateTo(_selectedAlert!),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
                                   child: Builder(builder: (context) {
                                     final responders = (_selectedAlert?['responders'] as List?)
                                             ?.whereType<Map>()
@@ -5663,24 +5655,22 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                     );
                                   }),
                                 ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.navigation, color: Colors.white),
+                                    label: const Text("NAVIGATE", style: TextStyle(color: Colors.white)),
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        padding: const EdgeInsets.all(12)),
+                                    onPressed: () => _navigateTo(_selectedAlert!),
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                Expanded(
-                                  child: currentRole == 'officer'
-                                      ? ElevatedButton.icon(
-                                          icon: const Icon(Icons.check_circle, color: Colors.white),
-                                          label: const Text("RESOLVE", style: TextStyle(color: Colors.white)),
-                                          style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.green,
-                                              padding: const EdgeInsets.all(12)),
-                                          onPressed: () => _resolveAlert(_selectedAlertId!),
-                                        )
-                                      : const SizedBox.shrink(),
-                                ),
-                                const SizedBox(width: 8),
                                 Expanded(
                                   child: ElevatedButton.icon(
                                     icon: const Icon(Icons.person, color: Colors.black),
@@ -5707,6 +5697,19 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                       }
                                     },
                                   ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: currentRole == 'officer'
+                                      ? ElevatedButton.icon(
+                                          icon: Icon(Icons.check_circle, color: Colors.grey[400]),
+                                          label: Text("RESOLVE", style: TextStyle(color: Colors.grey[400])),
+                                          style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.grey[850],
+                                              padding: const EdgeInsets.all(12)),
+                                          onPressed: () => _resolveAlert(_selectedAlertId!),
+                                        )
+                                      : const SizedBox.shrink(),
                                 ),
                               ],
                             ),
