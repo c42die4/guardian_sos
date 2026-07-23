@@ -280,7 +280,7 @@ function generatePayfastSignature(data, passphrase) {
   return crypto.createHash("md5").update(getString).digest("hex");
 }
 
-exports.payfastItn = onRequest(async (req, res) => {
+exports.payfastitn = onRequest(async (req, res) => {
   try {
     const receivedSignature = req.body.signature;
     // TODO: move to Firebase secret manager before going live -
