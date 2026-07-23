@@ -2,6 +2,7 @@ const {onDocumentCreated, onDocumentUpdated} = require("firebase-functions/v2/fi
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {onRequest} = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const crypto = require("crypto");
 
 admin.initializeApp();
 
@@ -247,7 +248,62 @@ exports.cleanupNotifications = onSchedule("every 60 minutes", async () => {
 // verification or Firestore updates yet - deliberately left for
 // a dedicated session, since that part is security-sensitive.
 // ─────────────────────────────────────────────────────────────────────────────
+// Encodes a string exactly the way PHP's urlencode() does, since
+// JavaScript's encodeURIComponent leaves ! ' ( ) * ~ unencoded, while
+// PHP encodes them. This mismatch is a common cause of PayFast
+// signature failures when porting PHP reference code to Node.js.
+function phpUrlEncode(str) {
+  return encodeURIComponent(str)
+      .replace(/%20/g, "+")
+      .replace(/[!'()*~]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+}
+
+// Rebuilds PayFast's signature exactly per their documented algorithm:
+// https://developers.payfast.co.za/docs#step_2_signature
+// 1. Concatenate non-blank fields as key=value&key2=value2... in the
+//    ORDER RECEIVED (not alphabetical - that's the separate API format).
+// 2. Append &passphrase=... if a passphrase is set.
+// 3. MD5 hash the result.
+function generatePayfastSignature(data, passphrase) {
+  let pfOutput = "";
+  for (const key of Object.keys(data)) {
+    if (key === "signature") continue;
+    const val = data[key];
+    if (val !== undefined && val !== null && String(val) !== "") {
+      pfOutput += `${key}=${phpUrlEncode(String(val).trim())}&`;
+    }
+  }
+  let getString = pfOutput.slice(0, -1);
+  if (passphrase) {
+    getString += `&passphrase=${phpUrlEncode(passphrase.trim())}`;
+  }
+  return crypto.createHash("md5").update(getString).digest("hex");
+}
+
 exports.payfastItn = onRequest(async (req, res) => {
-  console.log("PayFast ITN received:", JSON.stringify(req.body));
-  res.status(200).send("OK");
+  try {
+    const receivedSignature = req.body.signature;
+    // TODO: move to Firebase secret manager before going live -
+    // hardcoded here only for sandbox testing.
+    const passphrase = "dOors1024567";
+    const expectedSignature = generatePayfastSignature(req.body, passphrase);
+
+    if (receivedSignature !== expectedSignature) {
+      console.error("PayFast ITN signature mismatch", {
+        received: receivedSignature,
+        expected: expectedSignature,
+        body: req.body,
+      });
+      res.status(400).send("Invalid signature");
+      return;
+    }
+
+    console.log("PayFast ITN verified successfully:", JSON.stringify(req.body));
+    // No Firestore updates yet - that's the next step, once signature
+    // verification itself has been confirmed working in sandbox.
+    res.status(200).send("OK");
+  } catch (e) {
+    console.error("PayFast ITN error:", e);
+    res.status(500).send("Error");
+  }
 });
