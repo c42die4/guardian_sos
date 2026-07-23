@@ -1,5 +1,6 @@
 const {onDocumentCreated, onDocumentUpdated} = require("firebase-functions/v2/firestore");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
+const {onRequest} = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
@@ -238,4 +239,15 @@ exports.cleanupNotifications = onSchedule("every 60 minutes", async () => {
   snap.forEach((doc) => batch.delete(doc.ref));
   await batch.commit();
   console.log(`Cleaned up ${snap.size} old notifications`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAYFAST ITN (Instant Transaction Notification) - SKELETON ONLY
+// Just logs incoming notifications for now. No signature
+// verification or Firestore updates yet - deliberately left for
+// a dedicated session, since that part is security-sensitive.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.payfastItn = onRequest(async (req, res) => {
+  console.log("PayFast ITN received:", JSON.stringify(req.body));
+  res.status(200).send("OK");
 });
