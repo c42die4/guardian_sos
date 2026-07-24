@@ -4684,6 +4684,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   bool _isMuted = false;
   bool _tilesLoaded = false;
   Map<String, dynamic>? _selectedAlert;
+  double? _lastFollowedLat;
+  double? _lastFollowedLng;
   String? _selectedAlertId;
   bool _panelOpen = false;
   Position? _officerPosition;
@@ -5277,44 +5279,34 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
 
-          // Follow the selected alert's live position on the map
+          // Follow the selected alert's live position on the map,
+          // only moving when the position has genuinely changed.
           if (_selectedAlertId != null) {
             final selectedDocs =
-                alerts.where((d) => d.id == _selectedAlertId).toList();
-            String followResult;
-            if (selectedDocs.isEmpty) {
-              followResult = 'no matching doc in alerts list (count=${alerts.length})';
-            } else {
+                allAlerts.where((d) => d.id == _selectedAlertId).toList();
+            if (selectedDocs.isNotEmpty) {
               final freshData =
                   selectedDocs.first.data() as Map<String, dynamic>;
               final lat = (freshData['lat'] as num?)?.toDouble();
               final lng = (freshData['lng'] as num?)?.toDouble();
-              if (lat == null || lng == null) {
-                followResult = 'lat/lng null on matched doc';
-              } else {
+              if (lat != null && lng != null) {
                 setState(() => _selectedAlert = freshData);
-                if (!_mapReady) {
-                  followResult = 'skipped - mapReady false';
-                } else {
-                  try {
-                    final currentZoom = _mapCtrl.camera.zoom;
-                    final targetZoom = currentZoom < 15 ? 16.0 : currentZoom;
-                    _mapCtrl.move(LatLng(lat, lng), targetZoom);
-                    followResult =
-                        'moved to $lat,$lng zoom $targetZoom (was $currentZoom)';
-                  } catch (e) {
-                    followResult = 'exception during move: $e';
-                  }
+                final positionChanged = _lastFollowedLat == null ||
+                    _lastFollowedLng == null ||
+                    (lat - _lastFollowedLat!).abs() > 0.00001 ||
+                    (lng - _lastFollowedLng!).abs() > 0.00001;
+                if (positionChanged && _mapReady) {
+                  _lastFollowedLat = lat;
+                  _lastFollowedLng = lng;
+                  final currentZoom = _mapCtrl.camera.zoom;
+                  final targetZoom = currentZoom < 15 ? 16.0 : currentZoom;
+                  _mapCtrl.move(LatLng(lat, lng), targetZoom);
                 }
               }
             }
-            FirebaseFirestore.instance
-                .collection('alerts')
-                .doc(_selectedAlertId)
-                .update({
-              'debugCameraFollowAt': FieldValue.serverTimestamp(),
-              'debugCameraFollowResult': followResult,
-            }).catchError((_) {});
+          } else {
+            _lastFollowedLat = null;
+            _lastFollowedLng = null;
           }
 
           final currentIds = alerts.map((d) => d.id).toSet();
