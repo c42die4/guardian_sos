@@ -4684,6 +4684,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   bool _isMuted = false;
   bool _tilesLoaded = false;
   Map<String, dynamic>? _selectedAlert;
+  bool _detailExpanded = false;
   double? _lastFollowedLat;
   double? _lastFollowedLng;
   String? _selectedAlertId;
@@ -4754,8 +4755,15 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
 
   void _selectAlert(String id, Map<String, dynamic> data) {
     setState(() {
-      _selectedAlertId = id;
-      _selectedAlert = data;
+      if (_selectedAlertId == id) {
+        // Tapping the already-selected rider again: expand full panel
+        _detailExpanded = true;
+      } else {
+        // Selecting a new/different rider: badge only, no full panel
+        _selectedAlertId = id;
+        _selectedAlert = data;
+        _detailExpanded = false;
+      }
       _panelOpen = false;
     });
     if (_mapReady) {
@@ -5282,6 +5290,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
           // Follow the selected alert's live position on the map,
           // only moving when the position has genuinely changed.
           if (_selectedAlertId != null) {
+            debugPrint(
+                '[FOLLOW] selectedAlertId=$_selectedAlertId allAlerts.length=${allAlerts.length}');
             final selectedDocs =
                 allAlerts.where((d) => d.id == _selectedAlertId).toList();
             if (selectedDocs.isNotEmpty) {
@@ -5289,20 +5299,30 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                   selectedDocs.first.data() as Map<String, dynamic>;
               final lat = (freshData['lat'] as num?)?.toDouble();
               final lng = (freshData['lng'] as num?)?.toDouble();
+              debugPrint('[FOLLOW] found doc, lat=$lat lng=$lng');
               if (lat != null && lng != null) {
                 setState(() => _selectedAlert = freshData);
                 final positionChanged = _lastFollowedLat == null ||
                     _lastFollowedLng == null ||
                     (lat - _lastFollowedLat!).abs() > 0.00001 ||
                     (lng - _lastFollowedLng!).abs() > 0.00001;
+                debugPrint(
+                    '[FOLLOW] positionChanged=$positionChanged mapReady=$_mapReady lastLat=$_lastFollowedLat lastLng=$_lastFollowedLng');
                 if (positionChanged && _mapReady) {
                   _lastFollowedLat = lat;
                   _lastFollowedLng = lng;
                   final currentZoom = _mapCtrl.camera.zoom;
                   final targetZoom = currentZoom < 15 ? 16.0 : currentZoom;
-                  _mapCtrl.move(LatLng(lat, lng), targetZoom);
+                  debugPrint(
+                      '[FOLLOW] MOVING map to $lat,$lng zoom $targetZoom');
+                  final moveSuccess =
+                      _mapCtrl.move(LatLng(lat, lng), targetZoom);
+                  debugPrint('[FOLLOW] move() returned: $moveSuccess');
+                  if (mounted) setState(() {});
                 }
               }
+            } else {
+              debugPrint('[FOLLOW] selectedAlertId NOT found in allAlerts');
             }
           } else {
             _lastFollowedLat = null;
@@ -5346,10 +5366,13 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         return Stack(
           children: [
             FlutterMap(
-              key: const ValueKey('officer_map'),
+              key: ValueKey(
+                  'officer_map_${_lastFollowedLat ?? 0}_${_lastFollowedLng ?? 0}'),
               mapController: _mapCtrl,
               options: MapOptions(
-                initialCenter: const LatLng(-26.107, 28.05),
+                initialCenter: (_lastFollowedLat != null && _lastFollowedLng != null)
+                    ? LatLng(_lastFollowedLat!, _lastFollowedLng!)
+                    : const LatLng(-26.107, 28.05),
                 initialZoom: 13,
                 onMapReady: () {
                   setState(() => _mapReady = true);
@@ -5543,7 +5566,48 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                   ),
                 ),
               ),
-            if (_selectedAlert != null)
+            if (_selectedAlert != null && !_detailExpanded)
+              Positioned(
+                top: 20,
+                left: 20,
+                right: 20,
+                child: GestureDetector(
+                  onTap: () => setState(() => _detailExpanded = true),
+                  child: Card(
+                    color: color.withOpacity(0.9),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.my_location,
+                              color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Following ${(_selectedAlert!['userName'] ?? 'rider').toString()}  -  tap for details',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => setState(() {
+                              _selectedAlert = null;
+                              _selectedAlertId = null;
+                              _detailExpanded = false;
+                            }),
+                            child: const Icon(Icons.close,
+                                color: Colors.white, size: 20),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (_selectedAlert != null && _detailExpanded)
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -5579,12 +5643,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.close),
+                                icon: const Icon(Icons.close),
                                   onPressed: () => setState(
-                                      () {
-                                        _selectedAlert = null;
-                                        _selectedAlertId = null;
-                                      }),
+                                      () => _detailExpanded = false),
                                 ),
                               ],
                             ),
