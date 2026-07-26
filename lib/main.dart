@@ -4739,6 +4739,11 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   }
 
   void _playSiren(List<QueryDocumentSnapshot> alerts) {
+    debugPrint('[SIREN] _playSiren called with alerts.length=${alerts.length}');
+    if (alerts.isEmpty) {
+      debugPrint('[SIREN] skipped - alerts list is empty');
+      return;
+    }
     final latestData =
         alerts.isNotEmpty ? alerts.last.data() as Map<String, dynamic> : null;
     showAlertNotification(
@@ -5353,6 +5358,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
           }
 
           if (isFirstLoad) {
+            debugPrint(
+                '[SIREN] isFirstLoad branch: alerts.length=${alerts.length}, knownIds.length=${_knownAlertIds.length}');
             if (_mapReady) _zoomToAlerts(alerts);
             _playSiren(alerts);
           } else if (newIds.isNotEmpty) {
