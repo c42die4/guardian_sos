@@ -2374,6 +2374,10 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
   late Timer _timer;
   int _seconds = 0;
   List<String> _responders = [];
+  List<Map<String, dynamic>> _respondersData = [];
+  double? _myLat;
+  double? _myLng;
+  final MapController _respondersMapCtrl = MapController();
   StreamSubscription? _alertListener;
 
   @override
@@ -2397,12 +2401,24 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
       final data = snap.data()!;
       final status = data['status'] as String?;
       final respondersRaw = data['responders'] as List<dynamic>?;
-      final responderNames = respondersRaw
+      final respondersFull = respondersRaw
               ?.whereType<Map>()
-              .map((r) => (r['name'] ?? 'Someone').toString())
+              .map((r) => Map<String, dynamic>.from(r))
               .toList() ??
-          <String>[];
-      if (mounted) setState(() => _responders = responderNames);
+          <Map<String, dynamic>>[];
+      final responderNames = respondersFull
+          .map((r) => (r['name'] ?? 'Someone').toString())
+          .toList();
+      final myLat = (data['lat'] as num?)?.toDouble();
+      final myLng = (data['lng'] as num?)?.toDouble();
+      if (mounted) {
+        setState(() {
+          _responders = responderNames;
+          _respondersData = respondersFull;
+          _myLat = myLat;
+          _myLng = myLng;
+        });
+      }
       if (status == 'RESOLVED' || status == 'CANCELLED') {
         await stopLocationService();
         if (mounted) widget.onCancel();
@@ -2559,6 +2575,86 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                 style: TextStyle(color: Colors.grey[400], fontSize: 14),
               ),
               const SizedBox(height: 20),
+              if (_respondersData.any(
+                  (r) => r['lat'] != null && r['lng'] != null))
+                Builder(builder: (context) {
+                  final points = <LatLng>[];
+                  if (_myLat != null && _myLng != null) {
+                    points.add(LatLng(_myLat!, _myLng!));
+                  }
+                  final responderPoints = _respondersData
+                      .where((r) => r['lat'] != null && r['lng'] != null)
+                      .map((r) => LatLng((r['lat'] as num).toDouble(),
+                          (r['lng'] as num).toDouble()))
+                      .toList();
+                  points.addAll(responderPoints);
+                  final mapKey = points
+                      .map((p) =>
+                          '${p.latitude.toStringAsFixed(4)}_${p.longitude.toStringAsFixed(4)}')
+                      .join('|');
+                  return Container(
+                    height: 220,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[800]!),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: FlutterMap(
+                      key: ValueKey('responders_map_$mapKey'),
+                      mapController: _respondersMapCtrl,
+                      options: MapOptions(
+                        initialCenter: (_myLat != null && _myLng != null)
+                            ? LatLng(_myLat!, _myLng!)
+                            : const LatLng(-26.107, 28.05),
+                        initialZoom: 14,
+                        onMapReady: () {
+                          if (points.length > 1) {
+                            WidgetsBinding.instance
+                                .addPostFrameCallback((_) {
+                              _respondersMapCtrl.fitCamera(
+                                  CameraFit.coordinates(
+                                      coordinates: points,
+                                      padding:
+                                          const EdgeInsets.all(40)));
+                            });
+                          }
+                        },
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.cyberwarriors.sos',
+                          maxZoom: 19,
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            if (_myLat != null && _myLng != null)
+                              Marker(
+                                point: LatLng(_myLat!, _myLng!),
+                                width: 40,
+                                height: 40,
+                                child: const Icon(
+                                    Icons.person_pin_circle,
+                                    color: Colors.red,
+                                    size: 36),
+                              ),
+                            ...responderPoints.map((p) => Marker(
+                                  point: p,
+                                  width: 36,
+                                  height: 36,
+                                  child: const Icon(
+                                      Icons.directions_bike,
+                                      color: Colors.green,
+                                      size: 30),
+                                )),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 20, vertical: 10),
@@ -4692,6 +4788,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   Position? _officerPosition;
   bool _crashFlash = false;
   Timer? _flashTimer;
+  final Map<String, Timer> _responderLocationTimers = {};
 
   @override
   void initState() {
@@ -4733,9 +4830,57 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   @override
   void dispose() {
     _flashTimer?.cancel();
+    for (final t in _responderLocationTimers.values) {
+      t.cancel();
+    }
     // Stop all escalation timers when dashboard is closed
     SOSEscalationManager.stopAll();
     super.dispose();
+  }
+
+  void _startResponderLocationSharing(String alertId, String deviceId) {
+    _responderLocationTimers[alertId]?.cancel();
+    _responderLocationTimers[alertId] =
+        Timer.periodic(const Duration(seconds: 30), (timer) async {
+      try {
+        final alertDoc = await FirebaseFirestore.instance
+            .collection('alerts')
+            .doc(alertId)
+            .get();
+        if (!alertDoc.exists || alertDoc.data()?['status'] != 'ACTIVE') {
+          timer.cancel();
+          _responderLocationTimers.remove(alertId);
+          return;
+        }
+        final pos = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high,
+            timeLimit: const Duration(seconds: 15));
+        final existing = (alertDoc.data()?['responders'] as List?)
+                ?.whereType<Map>()
+                .toList() ??
+            <Map>[];
+        final updated = existing.map((r) {
+          if (r['deviceId'] == deviceId) {
+            final copy = Map<String, dynamic>.from(r);
+            copy['lat'] = pos.latitude;
+            copy['lng'] = pos.longitude;
+            return copy;
+          }
+          return r;
+        }).toList();
+        await FirebaseFirestore.instance
+            .collection('alerts')
+            .doc(alertId)
+            .update({'responders': updated});
+      } catch (e) {
+        debugPrint('Responder location update error: $e');
+      }
+    });
+  }
+
+  void _stopResponderLocationSharing(String alertId) {
+    _responderLocationTimers[alertId]?.cancel();
+    _responderLocationTimers.remove(alertId);
   }
 
   void _playSiren(List<QueryDocumentSnapshot> alerts) {
@@ -4930,12 +5075,21 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         if (confirm != true) return;
       }
 
+      Position? myPos;
+      try {
+        myPos = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high,
+            timeLimit: const Duration(seconds: 15));
+      } catch (_) {}
+
       final updatedList = [
         ...others,
         {
           'deviceId': deviceId,
           'name': responderName,
           'respondingAt': DateTime.now().toIso8601String(),
+          if (myPos != null) 'lat': myPos.latitude,
+          if (myPos != null) 'lng': myPos.longitude,
         },
       ];
 
@@ -4944,6 +5098,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         'respondingBy': responderName,
         'respondingAt': FieldValue.serverTimestamp(),
       });
+      _startResponderLocationSharing(id, deviceId);
 
       await _notifyCompanyOfUpdate(
           widget.company.id, deviceId, '$responderName is responding to the alert.');
@@ -4958,6 +5113,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   }
 
   Future<void> _unmarkResponding(String id) async {
+    _stopResponderLocationSharing(id);
     try {
       final deviceId = await getDeviceId();
       final alertDoc =
