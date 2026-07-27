@@ -2644,10 +2644,10 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                                   point: p,
                                   width: 36,
                                   height: 36,
-                                  child: const Icon(
-                                      Icons.directions_bike,
-                                      color: Colors.green,
-                                      size: 30),
+                                  child: Image.asset(
+                                      'assets/icons/lifebuoy.png',
+                                      width: 30,
+                                      height: 30),
                                 )),
                           ],
                         ),
