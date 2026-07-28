@@ -2510,7 +2510,8 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
-          child: Column(
+          child: SingleChildScrollView(
+            child: Column(
             children: [
               Row(children: [
                 if (widget.company.logoUrl.isNotEmpty)
@@ -2598,7 +2599,7 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                           '${p.latitude.toStringAsFixed(4)}_${p.longitude.toStringAsFixed(4)}')
                       .join('|');
                   return Container(
-                    height: 220,
+                    height: 150,
                     margin: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
@@ -2739,7 +2740,8 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
                 ),
               ),
             ],
-          ),
+              ),
+            ),
         ),
       ),
     );
