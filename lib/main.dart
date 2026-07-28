@@ -15,6 +15,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
@@ -2341,6 +2342,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: const Text("Skip for now",
                           style: TextStyle(color: Colors.grey)),
                     ),
+                  const SizedBox(height: 24),
+                  const Divider(color: Colors.grey),
+                  ListTile(
+                    leading:
+                        const Icon(Icons.info_outline, color: Colors.grey),
+                    title: const Text('About / Version',
+                        style: TextStyle(color: Colors.white)),
+                    trailing: const Icon(Icons.chevron_right,
+                        color: Colors.grey),
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const VersionScreen())),
+                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
@@ -4717,6 +4733,125 @@ class _FamilyScreenState extends State<FamilyScreen> {
                   ),
               ],
             ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// VERSION / ABOUT SCREEN
+// ────────────────────────────────────────────────────────────────────────────
+class VersionScreen extends StatefulWidget {
+  const VersionScreen({super.key});
+
+  @override
+  State<VersionScreen> createState() => _VersionScreenState();
+}
+
+class _VersionScreenState extends State<VersionScreen> {
+  String _version = '...';
+
+  static const List<Map<String, String>> _changelog = [
+    {
+      'version': '1.12.0',
+      'notes': 'Fixed SOS screen layout so buttons no longer get cut off. '
+          'Added a QR code to the family invite screen for faster app '
+          'downloads.'
+    },
+    {
+      'version': '1.11.0',
+      'notes': "Officer's map now shows other responders, not just the "
+          'rider. Fixed the mute button so it actually silences the '
+          'siren. Replaced the alert sound with a non-siren alarm tone.'
+    },
+    {
+      'version': '1.10.0',
+      'notes':
+          'Responder markers now use a lifebuoy icon instead of a bicycle.'
+    },
+    {
+      'version': '1.9.0',
+      'notes': 'Responders now share their live position. Riders can see '
+          'responders approaching on their own map.'
+    },
+    {
+      'version': '1.8.0',
+      'notes': 'Fixed the siren occasionally sounding with no active '
+          'alerts.'
+    },
+    {
+      'version': '1.7.0',
+      'notes': "Officer's map now reliably follows a selected rider's "
+          'live position as they move.'
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(
+          () => _version = '${info.version} (build ${info.buildNumber})');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(title: const Text('About / Version')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Center(
+            child: Column(
+              children: [
+                const Icon(Icons.shield, color: Colors.orange, size: 48),
+                const SizedBox(height: 8),
+                const Text('Guardian SOS',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text('Version $_version',
+                    style:
+                        TextStyle(color: Colors.grey[400], fontSize: 14)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Divider(color: Colors.grey),
+          const SizedBox(height: 8),
+          const Text("What's new",
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          ..._changelog.map((entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('v${entry['version']}',
+                        style: const TextStyle(
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14)),
+                    const SizedBox(height: 4),
+                    Text(entry['notes'] ?? '',
+                        style: TextStyle(
+                            color: Colors.grey[300], fontSize: 13)),
+                  ],
+                ),
+              )),
+        ],
+      ),
     );
   }
 }
