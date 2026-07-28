@@ -140,6 +140,9 @@ Future<void> initNotifications() async {
 
 Future<void> showAlertNotification(String name, String location,
     {int notificationId = 0, String? alertId, String? phone}) async {
+  final prefs = await SharedPreferences.getInstance();
+  final muted = prefs.getBool('sirenMuted') ?? false;
+
   final List<AndroidNotificationAction> actions = [
     if (phone != null && phone.isNotEmpty)
       AndroidNotificationAction(
@@ -148,17 +151,19 @@ Future<void> showAlertNotification(String name, String location,
         showsUserInterface: true,
         cancelNotification: false,
       ),
-
   ];
 
-  final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-    'sos_alerts',
-    'SOS Alerts',
+  final AndroidNotificationDetails androidDetails =
+      AndroidNotificationDetails(
+    muted ? 'sos_alerts_silent' : 'sos_alerts',
+    muted ? 'SOS Alerts (Muted)' : 'SOS Alerts',
     channelDescription: 'Emergency SOS alerts',
     importance: Importance.max,
     priority: Priority.high,
-    sound: const RawResourceAndroidNotificationSound('siren'),
-    playSound: true,
+    sound: muted
+        ? null
+        : const RawResourceAndroidNotificationSound('siren'),
+    playSound: !muted,
     enableVibration: true,
     vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 500]),
     fullScreenIntent: true,
@@ -4793,6 +4798,11 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      if (mounted) {
+        setState(() => _isMuted = prefs.getBool('sirenMuted') ?? false);
+      }
+    });
     getDeviceId().then((id) {
       if (mounted) setState(() => _myDeviceId = id);
     });
@@ -5605,6 +5615,53 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                     );
                   }).toList(),
                 ),
+                MarkerLayer(
+                  markers: () {
+                    if (_selectedAlertId == null) return <Marker>[];
+                    final matches =
+                        alerts.where((d) => d.id == _selectedAlertId);
+                    if (matches.isEmpty) return <Marker>[];
+                    final selectedData =
+                        matches.first.data() as Map<String, dynamic>;
+                    final responders =
+                        (selectedData['responders'] as List?)
+                                ?.whereType<Map>()
+                                .toList() ??
+                            <Map>[];
+                    return responders
+                        .where(
+                            (r) => r['lat'] != null && r['lng'] != null)
+                        .map((r) {
+                      final rlat = (r['lat'] as num).toDouble();
+                      final rlng = (r['lng'] as num).toDouble();
+                      return Marker(
+                        point: LatLng(rlat, rlng),
+                        width: 36,
+                        height: 44,
+                        child: Column(
+                          children: [
+                            Image.asset('assets/icons/lifebuoy.png',
+                                width: 28, height: 28),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 3, vertical: 1),
+                              decoration: BoxDecoration(
+                                  color: Colors.black87,
+                                  borderRadius:
+                                      BorderRadius.circular(3)),
+                              child: Text(
+                                (r['name'] ?? 'Responder').toString(),
+                                style: const TextStyle(
+                                    fontSize: 9, color: Colors.white),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList();
+                  }(),
+                ),
               ],
             ),
             if (alerts.isEmpty)
@@ -5714,7 +5771,12 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                 top: 20,
                 right: 20,
                 child: GestureDetector(
-                  onTap: () => setState(() => _isMuted = !_isMuted),
+                  onTap: () async {
+                    final newVal = !_isMuted;
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('sirenMuted', newVal);
+                    if (mounted) setState(() => _isMuted = newVal);
+                  },
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
