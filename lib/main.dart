@@ -14,6 +14,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
@@ -4652,6 +4653,35 @@ class _FamilyScreenState extends State<FamilyScreen> {
                           ),
                         ],
                       ),
+                      if (_familyCode.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius:
+                                        BorderRadius.circular(8),
+                                  ),
+                                  child: QrImageView(
+                                    data:
+                                        'https://sos.cyberwarriors.co.za/join/highway-devils.html',
+                                    version: QrVersions.auto,
+                                    size: 160,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text('Scan to download the app',
+                                    style: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
