@@ -1,7 +1,7 @@
 name: guardian_sos
 description: Professional Emergency Response System
 publish_to: 'none'
-version: 1.12.0+12
+version: 1.13.0+13
 environment:
   sdk: '>=3.0.0 <4.0.0'
 dependencies:
@@ -13,6 +13,7 @@ dependencies:
   geolocator: ^13.0.2
   qr_flutter: ^4.1.0
   package_info_plus: ^8.0.0
+  http: ^1.2.0
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
   shared_preferences: ^2.3.5

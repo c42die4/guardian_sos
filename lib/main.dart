@@ -16,6 +16,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
@@ -4749,6 +4750,7 @@ class VersionScreen extends StatefulWidget {
 
 class _VersionScreenState extends State<VersionScreen> {
   String _version = '...';
+  String? _updateAvailable;
 
   static const List<Map<String, String>> _changelog = [
     {
@@ -4789,6 +4791,7 @@ class _VersionScreenState extends State<VersionScreen> {
   void initState() {
     super.initState();
     _loadVersion();
+    _checkForUpdate();
   }
 
   Future<void> _loadVersion() async {
@@ -4796,6 +4799,24 @@ class _VersionScreenState extends State<VersionScreen> {
     if (mounted) {
       setState(
           () => _version = '${info.version} (build ${info.buildNumber})');
+    }
+  }
+
+  Future<void> _checkForUpdate() async {
+    try {
+      final response = await http.get(Uri.parse(
+          'https://api.github.com/repos/c42die4/guardian_sos/releases/latest'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final latestTag =
+            (data['tag_name'] as String?)?.replaceFirst('v', '');
+        final info = await PackageInfo.fromPlatform();
+        if (latestTag != null && latestTag != info.version && mounted) {
+          setState(() => _updateAvailable = latestTag);
+        }
+      }
+    } catch (e) {
+      debugPrint('Update check failed: $e');
     }
   }
 
@@ -4821,6 +4842,39 @@ class _VersionScreenState extends State<VersionScreen> {
                 Text('Version $_version',
                     style:
                         TextStyle(color: Colors.grey[400], fontSize: 14)),
+                if (_updateAvailable != null) ...[
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: () => launchUrl(
+                        Uri.parse(
+                            'https://github.com/c42die4/guardian_sos/releases/latest'),
+                        mode: LaunchMode.externalApplication),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                                'Update available: v$_updateAvailable',
+                                style: const TextStyle(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.open_in_new,
+                              color: Colors.orange, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
