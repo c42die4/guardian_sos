@@ -4820,6 +4820,15 @@ class _VersionScreenState extends State<VersionScreen> {
     }
   }
 
+  Future<void> _manualCheckForUpdate() async {
+    setState(() => _updateAvailable = null);
+    await _checkForUpdate();
+    if (mounted && _updateAvailable == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You're on the latest version")));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -4842,13 +4851,24 @@ class _VersionScreenState extends State<VersionScreen> {
                 Text('Version $_version',
                     style:
                         TextStyle(color: Colors.grey[400], fontSize: 14)),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: _manualCheckForUpdate,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Check for updates'),
+                ),
                 if (_updateAvailable != null) ...[
                   const SizedBox(height: 12),
                   GestureDetector(
-                    onTap: () => launchUrl(
-                        Uri.parse(
-                            'https://github.com/c42die4/guardian_sos/releases/latest'),
-                        mode: LaunchMode.externalApplication),
+                    onTap: () {
+                      final apkName = appFlavor == 'adventure'
+                          ? 'app-adventure-release.apk'
+                          : 'app-highway_devils-release.apk';
+                      launchUrl(
+                          Uri.parse(
+                              'https://github.com/c42die4/guardian_sos/releases/download/v$_updateAvailable/$apkName'),
+                          mode: LaunchMode.externalApplication);
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
