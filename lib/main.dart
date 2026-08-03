@@ -811,14 +811,11 @@ Future<void> sendFcmToDevice(String token, String title, String body) async {
 }
 
 Future<bool> hasInternet() async {
-  try {
-    final socket = await Socket.connect('8.8.8.8', 53,
-        timeout: const Duration(seconds: 3));
-    socket.destroy();
-    return true;
-  } catch (e) {
-    return false;
-  }
+  // Each caller already wraps its real Firestore work in its own
+  // try/catch with a timeout, so we no longer do a separate
+  // speculative connectivity check here (raw sockets don't work
+  // on web, and cross-origin HTTP checks hit CORS issues there).
+  return true;
 }
 
 @pragma('vm:entry-point')

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Guardian SOS — Live Rider Tracking</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0a0a0a;color:#fff;height:100vh;display:flex;flex-direction:column}
+.topbar{background:#111;border-bottom:1px solid #222;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:1000}
+.rider-info{display:flex;align-items:center;gap:10px}
+.rider-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot-idle{background:#888}
+.dot-riding{background:#44cc44;animation:pulse 2s infinite}
+.dot-sos{background:#ff2200;animation:flash 0.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:0}}
+.rider-name{font-size:14px;font-weight:600}
+.rider-status{font-size:11px;color:#888}
+.last-seen{font-size:11px;color:#555}
+.brand{font-size:11px;color:#444;display:flex;align-items:center;gap:6px}
+.brand span{color:#cc2200;font-weight:600}
+
+/* SOS Alert banner */
+.sos-banner{display:none;background:#cc2200;padding:12px 16px;text-align:center;font-size:14px;font-weight:700;letter-spacing:0.5px;animation:flash-bg 0.5s infinite;flex-shrink:0}
+@keyframes flash-bg{0%,100%{background:#cc2200}50%{background:#ff4400}}
+
+#map{flex:1;z-index:1}
+
+.info-card{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:#111e;backdrop-filter:blur(8px);border:1px solid #333;border-radius:14px;padding:12px 16px;min-width:200px;text-align:center;z-index:1000}
+.info-coords{font-size:12px;color:#666;margin-bottom:4px}
+.info-time{font-size:12px;color:#888}
+
+.loading{position:fixed;top:0;left:0;width:100%;height:100%;background:#0a0a0a;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:9999}
+.loading-spinner{width:40px;height:40px;border:3px solid #222;border-top-color:#cc2200;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes flash-marker{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.6;transform:scale(1.15)}}
+  @keyframes pulse-marker{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.loading p{font-size:14px;color:#666}
+
+.error-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:#0a0a0a;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:32px;text-align:center;z-index:9999}
+.error-icon{font-size:48px}
+.error-title{font-size:18px;font-weight:600}
+.error-msg{font-size:14px;color:#666;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="loading-spinner"></div>
+  <p>Finding rider...</p>
+</div>
+
+<div class="error-screen" id="error">
+  <div class="error-icon">🔍</div>
+  <div class="error-title">Tracking link not found</div>
+  <div class="error-msg">This tracking link may have expired or is invalid.<br>Ask your rider to share a new link.</div>
+</div>
+
+<div class="sos-banner" id="sosBanner">
+  🚨 SOS ACTIVE — YOUR RIDER NEEDS HELP — CONTACT EMERGENCY SERVICES IF NEEDED 🚨
+</div>
+
+<div class="topbar">
+  <div class="rider-info">
+    <div class="rider-dot dot-idle" id="statusDot"></div>
+    <div>
+      <div class="rider-name" id="riderName">Loading...</div>
+      <div class="rider-status" id="riderStatus">Connecting...</div>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div class="brand"><span>Guardian</span> SOS</div>
+    <div class="last-seen" id="lastSeen"></div>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<div class="info-card" id="infoCard" style="display:none">
+  <div class="info-coords" id="coordsText"></div>
+  <div class="info-time" id="timeText"></div>
+</div>
+
+<script>
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyDummy",
+  authDomain: "guardian-os-80042.firebaseapp.com",
+  projectId: "guardian-os-80042",
+  storageBucket: "guardian-os-80042.appspot.com",
+  messagingSenderId: "293568464040",
+  appId: "1:293568464040:web:610554596a3803acfd2e9d"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// Get token from URL
+const params = new URLSearchParams(window.location.search);
+const token = params.get('t');
+
+if (!token) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('error').style.display = 'flex';
+}
+
+// Init map
+const map = L.map('map', { zoomControl: true }).setView([-26.1097, 28.1663], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+
+
+// Dynamic marker icon based on status
+function getRiderIcon(status) {
+  const colors = {'SOS':'#cc2200','RIDING':'#22aa44','IDLE':'#666666'};
+  const icons = {'SOS':'🚨','RIDING':'🏍','IDLE':'🏍'};
+  const bg = colors[status] || '#666666';
+  const icon = icons[status] || '🏍';
+  const size = status === 'SOS' ? 48 : 44;
+  const anim = status === 'SOS'
+    ? 'animation:flash-marker 0.5s infinite'
+    : status === 'RIDING'
+    ? 'animation:pulse-marker 2s infinite'
+    : '';
+  return L.divIcon({
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 2px 12px rgba(0,0,0,0.6);${anim}">${icon}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+    className: ''
+  });
+}
+
+let marker = null;
+let firstLoad = true;
+
+function timeAgo(ts) {
+  if (!ts) return '';
+  const secs = Math.floor((Date.now() - ts.toMillis()) / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  if (secs < 3600) return `${Math.floor(secs/60)}m ago`;
+  return `${Math.floor(secs/3600)}h ago`;
+}
+
+function updateUI(data) {
+  document.getElementById('loading').style.display = 'none';
+
+  const name = data.riderName || 'Rider';
+  const status = data.status || 'IDLE';
+  const lat = data.lat || 0;
+  const lng = data.lng || 0;
+  const lastSeen = data.lastSeen;
+
+  // Update name
+  document.getElementById('riderName').textContent = name;
+
+  // Update status
+  const dot = document.getElementById('statusDot');
+  const statusEl = document.getElementById('riderStatus');
+  const banner = document.getElementById('sosBanner');
+
+  dot.className = 'rider-dot';
+  if (status === 'SOS') {
+    dot.classList.add('dot-sos');
+    statusEl.textContent = '🚨 SOS ACTIVE';
+    statusEl.style.color = '#ff4444';
+    banner.style.display = 'block';
+  } else if (status === 'RIDING') {
+    dot.classList.add('dot-riding');
+    statusEl.textContent = '🟢 Riding';
+    statusEl.style.color = '#44cc44';
+    banner.style.display = 'none';
+  } else {
+    dot.classList.add('dot-idle');
+    statusEl.textContent = '⚪ Idle';
+    statusEl.style.color = '#888';
+    banner.style.display = 'none';
+  }
+
+  // Last seen
+  if (lastSeen) {
+    document.getElementById('lastSeen').textContent = 'Updated ' + timeAgo(lastSeen);
+  }
+
+  // Update map if we have real coords
+  if (lat !== 0 && lng !== 0) {
+    const icon = getRiderIcon(status);
+    if (!marker) {
+      marker = L.marker([lat, lng], { icon: icon }).addTo(map);
+    } else {
+      marker.setLatLng([lat, lng]);
+      marker.setIcon(icon);
+    }
+
+    if (firstLoad) {
+      map.setView([lat, lng], 15);
+      firstLoad = false;
+    }
+
+    // Info card
+    document.getElementById('infoCard').style.display = 'block';
+    document.getElementById('coordsText').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    document.getElementById('timeText').textContent = lastSeen ? 'Last seen ' + timeAgo(lastSeen) : '';
+  }
+}
+
+// Listen to tracking document
+if (token) {
+  db.collection('tracking').doc(token).onSnapshot(snap => {
+    if (!snap.exists) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'flex';
+      return;
+    }
+    updateUI(snap.data());
+  }, err => {
+    console.error('Firestore error:', err);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display = 'flex';
+  });
+
+  // Update last seen time every 30 seconds
+  setInterval(() => {
+    const lastSeen = document.getElementById('lastSeen');
+    if (lastSeen.textContent) {
+      // Will be refreshed by next Firestore update
+    }
+  }, 30000);
+}
+</script>
+</body>
+</html>

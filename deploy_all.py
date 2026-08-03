@@ -34,6 +34,8 @@ def get_latest(folder, filename):
 os.makedirs('build\\web\\apk', exist_ok=True)
 os.makedirs('build\\web\\join', exist_ok=True)
 os.makedirs('join', exist_ok=True)
+os.makedirs('build\\web\\track', exist_ok=True)
+os.makedirs('track', exist_ok=True)
 print('Folders ready')
 
 # ─────────────────────────────────────────────────────────────────
@@ -78,6 +80,16 @@ for search_name, save_name in pages.items():
             print(f'  [OK] {save_name} (from existing join folder)')
         else:
             print(f'  [SKIP] {save_name} not found in Downloads or join folder')
+
+# ------------------------------------------------------------
+# Step 3b -- Copy live-tracking page
+# ------------------------------------------------------------
+track_src = 'track\\index.html'
+if os.path.exists(track_src):
+    shutil.copy(track_src, 'build\\web\\track\\index.html')
+    print('  [OK] track/index.html')
+else:
+    print('  [SKIP] track/index.html not found in project')
 
 # ─────────────────────────────────────────────────────────────────
 # Step 4 — Deploy to Firebase
