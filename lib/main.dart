@@ -5193,6 +5193,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                 label: const Text('Google Maps  -  Normal'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.all(14)),
                 onPressed: () => Navigator.of(ctx).pop('maps'),
               ),
@@ -5205,6 +5206,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                 label: const Text('Google Maps  -  HUD Mode'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.all(14)),
                 onPressed: () => Navigator.of(ctx).pop('hud'),
               ),
@@ -5221,9 +5223,15 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     );
 
     if (choice == 'maps') {
-      final uri = Uri.parse(
-          'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final googleMapsNav = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
+      if (await canLaunchUrl(googleMapsNav)) {
+        await launchUrl(googleMapsNav,
+            mode: LaunchMode.externalNonBrowserApplication);
+      } else {
+        final fallback = Uri.parse(
+            'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+        await launchUrl(fallback, mode: LaunchMode.externalApplication);
+      }
     } else if (choice == 'hud') {
       final googleMapsHud = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
       if (await canLaunchUrl(googleMapsHud)) {
