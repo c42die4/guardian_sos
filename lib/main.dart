@@ -5900,6 +5900,69 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
                     }).toList();
                   }(),
                 ),
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('tracking')
+                      .where('companyId', isEqualTo: widget.company.id)
+                      .where('active', isEqualTo: true)
+                      .where('status', isEqualTo: 'RIDING')
+                      .snapshots(),
+                  builder: (context, trackSnap) {
+                    if (!trackSnap.hasData) {
+                      return const MarkerLayer(markers: []);
+                    }
+                    final riders = trackSnap.data!.docs.where((d) {
+                      final data = d.data() as Map<String, dynamic>;
+                      final lat = data['lat'];
+                      final lng = data['lng'];
+                      return lat != null &&
+                          lng != null &&
+                          (lat != 0.0 || lng != 0.0);
+                    });
+                    return MarkerLayer(
+                      markers: riders.map((d) {
+                        final data = d.data() as Map<String, dynamic>;
+                        final lat = (data['lat'] as num).toDouble();
+                        final lng = (data['lng'] as num).toDouble();
+                        final name =
+                            (data['riderName'] ?? 'Rider').toString();
+                        return Marker(
+                          point: LatLng(lat, lng),
+                          width: 40,
+                          height: 44,
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 16,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: Colors.white, width: 2),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 3, vertical: 1),
+                                decoration: BoxDecoration(
+                                    color: Colors.black87,
+                                    borderRadius:
+                                        BorderRadius.circular(3)),
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(
+                                      fontSize: 9, color: Colors.white),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
               ],
             ),
             if (alerts.isEmpty)
