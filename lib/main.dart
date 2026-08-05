@@ -877,6 +877,31 @@ class _AppEntryState extends State<AppEntry> {
       // On web, SharedPreferences already uses localStorage internally
       // so no extra handling needed here
 
+      // On web, if no saved company yet, check for a ?code= URL param
+      // (used for direct officer/guide dashboard links, e.g.
+      // https://sos.cyberwarriors.co.za/?code=ADV-GUIDE-2026)
+      if (companyId == null && kIsWeb) {
+        final urlCode = Uri.base.queryParameters['code'];
+        if (urlCode != null && urlCode.trim().isNotEmpty) {
+          final urlQuery = await FirebaseFirestore.instance
+              .collection('companies')
+              .where('officerCode', isEqualTo: urlCode.trim().toUpperCase())
+              .limit(1)
+              .get();
+          if (urlQuery.docs.isNotEmpty) {
+            final companyDoc = urlQuery.docs.first;
+            final company = CompanyConfig.fromFirestore(
+                companyDoc.id, companyDoc.data());
+            await saveCompanyId(companyDoc.id);
+            await saveRole('officer');
+            await saveCompanyData(company);
+            companyId = companyDoc.id;
+            currentRole = 'officer';
+            currentCompany = company;
+          }
+        }
+      }
+
       if (companyId == null) {
         setState(() => _loading = false);
         return;
