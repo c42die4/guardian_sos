@@ -400,6 +400,8 @@ void startCallback() {
 class LocationTaskHandler extends TaskHandler {
   String? _alertId;
   String? _companyId;
+  String _mode = 'rider';
+  String? _deviceId;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -410,6 +412,8 @@ class LocationTaskHandler extends TaskHandler {
     }
     _alertId = await FlutterForegroundTask.getData<String>(key: 'alertId');
     _companyId = await FlutterForegroundTask.getData<String>(key: 'companyId');
+    _mode = await FlutterForegroundTask.getData<String>(key: 'mode') ?? 'rider';
+    _deviceId = await FlutterForegroundTask.getData<String>(key: 'deviceId');
   }
 
   @override
@@ -425,6 +429,12 @@ class LocationTaskHandler extends TaskHandler {
       final latestCompanyId =
           await FlutterForegroundTask.getData<String>(key: 'companyId');
       if (latestCompanyId != null) _companyId = latestCompanyId;
+      final latestMode =
+          await FlutterForegroundTask.getData<String>(key: 'mode');
+      if (latestMode != null) _mode = latestMode;
+      final latestDeviceId =
+          await FlutterForegroundTask.getData<String>(key: 'deviceId');
+      if (latestDeviceId != null) _deviceId = latestDeviceId;
       if (_alertId == null) return;
       // Check if alert is still active  -  stop service if resolved or cancelled
       final alertSnap = await FirebaseFirestore.instance
@@ -457,13 +467,41 @@ class LocationTaskHandler extends TaskHandler {
             timeLimit: const Duration(seconds: 15));
       } on TimeoutException {
         debugPrint('Location fix timed out after 15s');
+        if (_mode == 'rider') {
+          await FirebaseFirestore.instance
+              .collection('alerts')
+              .doc(_alertId)
+              .update({
+            'lastTrackingAttempt': FieldValue.serverTimestamp(),
+            'lastTrackingError': 'GPS timeout (15s)',
+          }).catchError((_) {});
+        }
+        return;
+      }
+
+      if (_mode == 'responder') {
+        if (_deviceId == null) return;
+        final existing = (alertSnap.data()?['responders'] as List?)
+                ?.whereType<Map>()
+                .toList() ??
+            <Map>[];
+        final updated = existing.map((r) {
+          if (r['deviceId'] == _deviceId) {
+            final copy = Map<String, dynamic>.from(r);
+            copy['lat'] = pos!.latitude;
+            copy['lng'] = pos.longitude;
+            return copy;
+          }
+          return r;
+        }).toList();
         await FirebaseFirestore.instance
             .collection('alerts')
             .doc(_alertId)
-            .update({
-          'lastTrackingAttempt': FieldValue.serverTimestamp(),
-          'lastTrackingError': 'GPS timeout (15s)',
-        }).catchError((_) {});
+            .update({'responders': updated});
+        FlutterForegroundTask.updateService(
+          notificationTitle: 'Responding to alert',
+          notificationText: 'Sharing your location with the rider',
+        );
         return;
       }
 
@@ -523,9 +561,14 @@ void initForegroundTask() {
   );
 }
 
-Future<void> startLocationService(String alertId, String companyId) async {
+Future<void> startLocationService(String alertId, String companyId,
+    {String mode = 'rider', String? deviceId}) async {
   await FlutterForegroundTask.saveData(key: 'alertId', value: alertId);
   await FlutterForegroundTask.saveData(key: 'companyId', value: companyId);
+  await FlutterForegroundTask.saveData(key: 'mode', value: mode);
+  if (deviceId != null) {
+    await FlutterForegroundTask.saveData(key: 'deviceId', value: deviceId);
+  }
 
   // Always do a clean stop+start rather than restartService(), which does
   // not reliably re-establish the repeating location-update timer - it was
@@ -534,8 +577,11 @@ Future<void> startLocationService(String alertId, String companyId) async {
     await FlutterForegroundTask.stopService();
   }
   await FlutterForegroundTask.startService(
-    notificationTitle: 'SOS Active',
-    notificationText: 'Sharing your location with officers...',
+    notificationTitle:
+        mode == 'responder' ? 'Responding to alert' : 'SOS Active',
+    notificationText: mode == 'responder'
+        ? 'Sharing your location with the rider...'
+        : 'Sharing your location with officers...',
     callback: startCallback,
   );
 }
@@ -4003,11 +4049,22 @@ class HUDScreen extends StatefulWidget {
 
 class _HUDScreenState extends State<HUDScreen>
     with SingleTickerProviderStateMixin {
-  bool _hudMode = true;
+  bool _hudMode = false;
   double _bearing = 0;
   double _distance = 0;
+  final List<double> _recentBearings = [];
+  double _heading = 0;
   Position? _myPosition;
   StreamSubscription<Position>? _positionStream;
+  StreamSubscription<MagnetometerEvent>? _magSubscription;
+  StreamSubscription<AccelerometerEvent>? _accelSubscription;
+  // Latest accelerometer reading, used to tilt-compensate the compass.
+  // Defaults represent 'lying flat' so early magnetometer events
+  // (before the first accelerometer reading arrives) don't misbehave.
+  double _accelX = 0;
+  double _accelY = 0;
+  double _accelZ = 9.8;
+  final MapController _hudMapCtrl = MapController();
   late AnimationController _arrowController;
   late Animation<double> _arrowAnimation;
 
@@ -4030,6 +4087,47 @@ class _HUDScreenState extends State<HUDScreen>
     _arrowAnimation =
         Tween<double>(begin: 0, end: 0).animate(_arrowController);
     _startTracking();
+    _accelSubscription = accelerometerEventStream(
+            samplingPeriod: SensorInterval.normalInterval)
+        .listen((AccelerometerEvent e) {
+      _accelX = e.x;
+      _accelY = e.y;
+      _accelZ = e.z;
+    });
+    _magSubscription = magnetometerEventStream().listen((event) {
+      if (!mounted) return;
+      final newHeading = _tiltCompensatedHeading(
+          event.x, event.y, event.z, _accelX, _accelY, _accelZ);
+      // Only rebuild on a meaningful change to avoid jittery repaints
+      if ((newHeading - _heading).abs() > 2) {
+        setState(() => _heading = newHeading);
+      }
+    });
+  }
+
+  // Combines magnetometer + accelerometer to compute a compass heading
+  // that stays accurate when the phone is tilted, not just held flat.
+  // Returns degrees, 0-360, where 0 = magnetic north.
+  double _tiltCompensatedHeading(
+      double mx, double my, double mz, double ax, double ay, double az) {
+    // Normalize the accelerometer reading to a unit 'gravity' vector
+    final normA = sqrt(ax * ax + ay * ay + az * az);
+    if (normA == 0) return _heading; // avoid divide-by-zero, keep last value
+    final gx = ax / normA, gy = ay / normA, gz = az / normA;
+
+    // Device tilt angles from the gravity vector
+    final pitch = asin(-gx);
+    final roll = asin(gy / cos(pitch));
+
+    // Tilt-compensate the magnetometer reading using pitch/roll
+    final xh = mx * cos(pitch) + mz * sin(pitch);
+    final yh = mx * sin(roll) * sin(pitch) +
+        my * cos(roll) -
+        mz * sin(roll) * cos(pitch);
+
+    var heading = atan2(yh, xh) * (180 / pi);
+    heading = (heading + 360) % 360;
+    return heading;
   }
 
   void _startTracking() async {
@@ -4129,9 +4227,24 @@ class _HUDScreenState extends State<HUDScreen>
       widget.targetLng,
     );
 
+    // Smooth over the last few readings using a circular mean. Plain
+    // averaging breaks near the 0/360 wraparound (e.g. averaging 350
+    // and 10 naively gives 180, not 0), so average the sin/cos parts
+    // instead. This reduces jitter from normal GPS position noise,
+    // which matters most at short range.
+    _recentBearings.add(bearing);
+    if (_recentBearings.length > 5) _recentBearings.removeAt(0);
+    double sumSin = 0, sumCos = 0;
+    for (final b in _recentBearings) {
+      final rad = b * (pi / 180);
+      sumSin += sin(rad);
+      sumCos += cos(rad);
+    }
+    final smoothedBearing = atan2(sumSin, sumCos) * (180 / pi);
+
     _arrowAnimation = Tween<double>(
       begin: _arrowAnimation.value,
-      end: bearing * (pi / 180),
+      end: smoothedBearing * (pi / 180),
     ).animate(CurvedAnimation(
       parent: _arrowController,
       curve: Curves.easeInOut,
@@ -4140,7 +4253,7 @@ class _HUDScreenState extends State<HUDScreen>
 
     setState(() {
       _myPosition = pos;
-      _bearing = bearing;
+      _bearing = smoothedBearing;
       _distance = distance;
     });
   }
@@ -4171,6 +4284,8 @@ class _HUDScreenState extends State<HUDScreen>
   @override
   void dispose() {
     _positionStream?.cancel();
+    _magSubscription?.cancel();
+    _accelSubscription?.cancel();
     _arrowController.dispose();
     super.dispose();
   }
@@ -4184,36 +4299,7 @@ class _HUDScreenState extends State<HUDScreen>
       child: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close,
-                        color: Colors.white, size: 28),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Text(widget.clientName,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold)),
-                  IconButton(
-                    icon: Icon(
-                      _hudMode
-                          ? Icons.visibility
-                          : Icons.visibility_off,
-                      color: Colors.red,
-                      size: 28,
-                    ),
-                    onPressed: () =>
-                        setState(() => _hudMode = !_hudMode),
-                  ),
-                ],
-              ),
-            ),
+            const SizedBox(height: 44),
             Text(
               _myPosition == null
                   ? 'Locating...'
@@ -4327,16 +4413,142 @@ class _HUDScreenState extends State<HUDScreen>
                   ),
                 ),
             ],
-            Expanded(
-              child: Center(
-                child: AnimatedBuilder(
-                  animation: _arrowAnimation,
-                  builder: (_, __) => Transform.rotate(
-                    angle: _arrowAnimation.value,
-                    child: Icon(Icons.navigation,
-                        color: color, size: 120),
+            if (_distance < 30)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange, width: 1),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.warning_amber,
+                          color: Colors.orange, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "You're very close  -  GPS can't reliably "
+                          'show direction this near. Look around too.',
+                          style: TextStyle(
+                              color: Colors.orange, fontSize: 12),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+              ),
+            Expanded(
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: (_myPosition != null)
+                            ? FlutterMap(
+                                key: ValueKey('hud_map_'
+                                    '${_myPosition!.latitude.toStringAsFixed(4)}_'
+                                    '${_myPosition!.longitude.toStringAsFixed(4)}'),
+                                mapController: _hudMapCtrl,
+                                options: MapOptions(
+                                  initialCenter: LatLng(
+                                      _myPosition!.latitude,
+                                      _myPosition!.longitude),
+                                  initialZoom: 15,
+                                  onMapReady: () {
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      _hudMapCtrl.fitCamera(
+                                        CameraFit.coordinates(
+                                          coordinates: [
+                                            LatLng(
+                                                _myPosition!.latitude,
+                                                _myPosition!.longitude),
+                                            LatLng(widget.targetLat,
+                                                widget.targetLng),
+                                          ],
+                                          padding:
+                                              const EdgeInsets.all(50),
+                                        ),
+                                      );
+                                    });
+                                  },
+                                ),
+                                children: [
+                                  TileLayer(
+                                    urlTemplate:
+                                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                    userAgentPackageName:
+                                        'com.cyberwarriors.sos',
+                                    maxZoom: 19,
+                                  ),
+                                  MarkerLayer(
+                                    markers: [
+                                      Marker(
+                                        point: LatLng(
+                                            _myPosition!.latitude,
+                                            _myPosition!.longitude),
+                                        width: 40,
+                                        height: 40,
+                                        child: const Icon(
+                                            Icons.person_pin_circle,
+                                            color: Colors.blue,
+                                            size: 36),
+                                      ),
+                                      Marker(
+                                        point: LatLng(widget.targetLat,
+                                            widget.targetLng),
+                                        width: 40,
+                                        height: 40,
+                                        child: Icon(Icons.location_on,
+                                            color: color, size: 36),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              )
+                            : const Center(
+                                child: CircularProgressIndicator(
+                                    color: Colors.white38),
+                              ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Head toward ${_bearing.toStringAsFixed(0)}° '
+                    '(${const [
+                      'N',
+                      'NE',
+                      'E',
+                      'SE',
+                      'S',
+                      'SW',
+                      'W',
+                      'NW'
+                    ][(((_bearing % 360) + 22.5) ~/ 45) % 8]})',
+                    style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 28),
+                    child: Text(
+                      'No signal? The heading above still works  -  it '
+                      "only needs GPS, not the map tiles.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white38, fontSize: 11),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
               ),
             ),
             Padding(
@@ -4344,7 +4556,7 @@ class _HUDScreenState extends State<HUDScreen>
               child: Text(
                 _hudMode
                     ? 'HUD MODE  -  Place phone on dashboard'
-                    : 'NORMAL MODE  -  Tap ├░┬ü to flip for windscreen',
+                    : 'NORMAL MODE  -  Tap the switch above to flip for windscreen',
                 style: const TextStyle(
                     color: Colors.white24,
                     fontSize: 11,
@@ -4361,13 +4573,54 @@ class _HUDScreenState extends State<HUDScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: _hudMode
-          ? Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.rotationX(pi),
-              child: _buildContent(),
-            )
-          : _buildContent(),
+      body: Stack(
+        children: [
+          _hudMode
+              ? Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.rotationX(pi),
+                  child: _buildContent(),
+                )
+              : _buildContent(),
+          // Always right-side-up, regardless of HUD rotation
+          SafeArea(
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close,
+                        color: Colors.white, size: 28),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  Text(widget.clientName,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _hudMode ? 'HUD' : 'Normal',
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12),
+                      ),
+                      Switch(
+                        value: _hudMode,
+                        activeColor: Colors.red,
+                        onChanged: (v) => setState(() => _hudMode = v),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -5056,7 +5309,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   Position? _officerPosition;
   bool _crashFlash = false;
   Timer? _flashTimer;
-  final Map<String, Timer> _responderLocationTimers = {};
 
   @override
   void initState() {
@@ -5103,57 +5355,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   @override
   void dispose() {
     _flashTimer?.cancel();
-    for (final t in _responderLocationTimers.values) {
-      t.cancel();
-    }
     // Stop all escalation timers when dashboard is closed
     SOSEscalationManager.stopAll();
     super.dispose();
-  }
-
-  void _startResponderLocationSharing(String alertId, String deviceId) {
-    _responderLocationTimers[alertId]?.cancel();
-    _responderLocationTimers[alertId] =
-        Timer.periodic(const Duration(seconds: 30), (timer) async {
-      try {
-        final alertDoc = await FirebaseFirestore.instance
-            .collection('alerts')
-            .doc(alertId)
-            .get();
-        if (!alertDoc.exists || alertDoc.data()?['status'] != 'ACTIVE') {
-          timer.cancel();
-          _responderLocationTimers.remove(alertId);
-          return;
-        }
-        final pos = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.high,
-            timeLimit: const Duration(seconds: 15));
-        final existing = (alertDoc.data()?['responders'] as List?)
-                ?.whereType<Map>()
-                .toList() ??
-            <Map>[];
-        final updated = existing.map((r) {
-          if (r['deviceId'] == deviceId) {
-            final copy = Map<String, dynamic>.from(r);
-            copy['lat'] = pos.latitude;
-            copy['lng'] = pos.longitude;
-            return copy;
-          }
-          return r;
-        }).toList();
-        await FirebaseFirestore.instance
-            .collection('alerts')
-            .doc(alertId)
-            .update({'responders': updated});
-      } catch (e) {
-        debugPrint('Responder location update error: $e');
-      }
-    });
-  }
-
-  void _stopResponderLocationSharing(String alertId) {
-    _responderLocationTimers[alertId]?.cancel();
-    _responderLocationTimers.remove(alertId);
   }
 
   void _playSiren(List<QueryDocumentSnapshot> alerts) {
@@ -5215,7 +5419,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.map),
-                label: const Text('Google Maps  -  Normal'),
+                label: const Text('Navigate'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
@@ -5227,13 +5431,13 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                icon: const Icon(Icons.remove_red_eye),
-                label: const Text('Google Maps  -  HUD Mode'),
+                icon: const Icon(Icons.explore),
+                label: const Text('Off-Road  -  Compass'),
                 style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                    backgroundColor: Colors.green[700],
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.all(14)),
-                onPressed: () => Navigator.of(ctx).pop('hud'),
+                onPressed: () => Navigator.of(ctx).pop('offroad'),
               ),
             ),
             const SizedBox(height: 8),
@@ -5247,6 +5451,21 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       ),
     );
 
+    if (choice == 'offroad') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HUDScreen(
+            targetLat: lat,
+            targetLng: lng,
+            clientName: (data['userName'] ?? 'Client').toString(),
+            company: widget.company,
+          ),
+        ),
+      );
+      return;
+    }
+
     if (choice == 'maps') {
       final googleMapsNav = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
       if (await canLaunchUrl(googleMapsNav)) {
@@ -5256,57 +5475,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         final fallback = Uri.parse(
             'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
         await launchUrl(fallback, mode: LaunchMode.externalApplication);
-      }
-    } else if (choice == 'hud') {
-      final googleMapsHud = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
-      if (await canLaunchUrl(googleMapsHud)) {
-        await launchUrl(googleMapsHud,
-            mode: LaunchMode.externalNonBrowserApplication);
-      } else {
-        final fallback = Uri.parse(
-            'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
-        await launchUrl(fallback, mode: LaunchMode.externalApplication);
-      }
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: Colors.grey[900],
-            title: const Text('Enable HUD in Google Maps',
-                style: TextStyle(color: Colors.white, fontSize: 16)),
-            content: const Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Once Google Maps opens:',
-                    style:
-                        TextStyle(color: Colors.white70, fontSize: 13)),
-                SizedBox(height: 12),
-                Text('1. Tap the ├ó menu (top right)',
-                    style: TextStyle(color: Colors.white, fontSize: 14)),
-                SizedBox(height: 6),
-                Text('2. Tap "HUD mode"',
-                    style: TextStyle(color: Colors.white, fontSize: 14)),
-                SizedBox(height: 6),
-                Text('3. Place phone on dashboard',
-                    style: TextStyle(color: Colors.white, fontSize: 14)),
-                SizedBox(height: 12),
-                Text(
-                    'Google Maps HUD reflects perfectly off your windscreen.',
-                    style:
-                        TextStyle(color: Colors.white38, fontSize: 12)),
-              ],
-            ),
-            actions: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red),
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Got it'),
-              ),
-            ],
-          ),
-        );
       }
     }
   }
@@ -5379,7 +5547,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         'respondingBy': responderName,
         'respondingAt': FieldValue.serverTimestamp(),
       });
-      _startResponderLocationSharing(id, deviceId);
+      startLocationService(id, widget.company.id,
+          mode: 'responder', deviceId: deviceId);
 
       await _notifyCompanyOfUpdate(
           widget.company.id, deviceId, '$responderName is responding to the alert.');
@@ -5394,7 +5563,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   }
 
   Future<void> _unmarkResponding(String id) async {
-    _stopResponderLocationSharing(id);
+    await stopLocationService();
     try {
       final deviceId = await getDeviceId();
       final alertDoc =

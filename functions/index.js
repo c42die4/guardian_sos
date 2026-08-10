@@ -229,6 +229,78 @@ exports.onAlertUpdated = onDocumentUpdated("alerts/{alertId}", async (event) => 
   }
 });
 
+// ─────────────────────────────────────────────────────────────────
+// Triggered whenever a new device registers (someone enters a code)
+// Sends a push notification to Christo's own admin device so he
+// knows the moment someone tries the app, without waiting on
+// a message from the client.
+// ─────────────────────────────────────────────────────────────────
+const ADMIN_DEVICE_ID = "178120430561047432";
+
+exports.onDeviceCreated = onDocumentCreated("devices/{deviceId}", async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+
+  const deviceId = event.params.deviceId;
+  if (deviceId === ADMIN_DEVICE_ID) return; // don't notify on your own device
+
+  const device = snap.data();
+  const companyId = device.companyId;
+  const role = device.role || "unknown";
+
+  // Look up a friendly company name
+  let companyName = companyId || "Unknown company";
+  if (companyId) {
+    try {
+      const companyDoc = await admin.firestore().collection("companies").doc(companyId).get();
+      if (companyDoc.exists && companyDoc.data().name) {
+        companyName = companyDoc.data().name;
+      }
+    } catch (e) {
+      console.error("Failed to look up company name:", e);
+    }
+  }
+
+  // Get a FRESH token for the admin device (in case it rotated)
+  const adminDoc = await admin.firestore().collection("devices").doc(ADMIN_DEVICE_ID).get();
+  if (!adminDoc.exists) {
+    console.log("Admin device not found, skipping notify");
+    return;
+  }
+  const adminToken = adminDoc.data().fcmToken;
+  if (!adminToken) {
+    console.log("Admin device has no fcmToken, skipping notify");
+    return;
+  }
+
+  const message = {
+    notification: {
+      title: "New registration",
+      body: `${companyName} - ${role} joined`,
+    },
+    data: {
+      companyId: companyId || "",
+      role: role,
+      deviceId: deviceId,
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "sos_alerts_silent",
+        priority: "high",
+      },
+    },
+    token: adminToken,
+  };
+
+  try {
+    await admin.messaging().send(message);
+    console.log(`Admin notify sent: ${companyName} - ${role}`);
+  } catch (error) {
+    console.error("Admin notify FCM error:", error);
+  }
+});
+
 exports.cleanupNotifications = onSchedule("every 60 minutes", async () => {
   const cutoff = new Date(Date.now() - 60 * 60 * 1000);
   const snap = await admin.firestore()
