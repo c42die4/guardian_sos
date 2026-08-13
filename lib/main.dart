@@ -4050,6 +4050,7 @@ class HUDScreen extends StatefulWidget {
 class _HUDScreenState extends State<HUDScreen>
     with SingleTickerProviderStateMixin {
   bool _hudMode = false;
+  bool _satelliteView = true;
   double _bearing = 0;
   double _distance = 0;
   final List<double> _recentBearings = [];
@@ -4449,7 +4450,9 @@ class _HUDScreenState extends State<HUDScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: (_myPosition != null)
+                        child: Stack(
+                          children: [
+                            (_myPosition != null)
                             ? FlutterMap(
                                 key: ValueKey('hud_map_'
                                     '${_myPosition!.latitude.toStringAsFixed(4)}_'
@@ -4459,7 +4462,7 @@ class _HUDScreenState extends State<HUDScreen>
                                   initialCenter: LatLng(
                                       _myPosition!.latitude,
                                       _myPosition!.longitude),
-                                  initialZoom: 15,
+                                  initialZoom: _satelliteView ? 14 : 15,
                                   onMapReady: () {
                                     WidgetsBinding.instance
                                         .addPostFrameCallback((_) {
@@ -4474,6 +4477,7 @@ class _HUDScreenState extends State<HUDScreen>
                                           ],
                                           padding:
                                               const EdgeInsets.all(50),
+                                          maxZoom: _satelliteView ? 14 : 18,
                                         ),
                                       );
                                     });
@@ -4481,11 +4485,13 @@ class _HUDScreenState extends State<HUDScreen>
                                 ),
                                 children: [
                                   TileLayer(
-                                    urlTemplate:
-                                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                    urlTemplate: _satelliteView
+                                        ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg'
+                                        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                     userAgentPackageName:
                                         'com.cyberwarriors.sos',
                                     maxZoom: 19,
+                                    maxNativeZoom: _satelliteView ? 14 : 19,
                                   ),
                                   MarkerLayer(
                                     markers: [
@@ -4516,6 +4522,29 @@ class _HUDScreenState extends State<HUDScreen>
                                 child: CircularProgressIndicator(
                                     color: Colors.white38),
                               ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Material(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                                child: IconButton(
+                                  icon: Icon(
+                                    _satelliteView
+                                        ? Icons.map
+                                        : Icons.satellite_alt,
+                                    color: Colors.white,
+                                  ),
+                                  tooltip: _satelliteView
+                                      ? 'Switch to street map'
+                                      : 'Switch to satellite',
+                                  onPressed: () => setState(
+                                      () => _satelliteView = !_satelliteView),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

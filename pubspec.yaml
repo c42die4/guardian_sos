@@ -1,7 +1,7 @@
 name: guardian_sos
 description: Professional Emergency Response System
 publish_to: 'none'
-version: 1.19.0+19
+version: 1.20.0+20
 environment:
   sdk: '>=3.0.0 <4.0.0'
 dependencies:
