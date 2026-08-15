@@ -25,6 +25,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -4057,15 +4058,10 @@ class _HUDScreenState extends State<HUDScreen>
   double _heading = 0;
   Position? _myPosition;
   StreamSubscription<Position>? _positionStream;
-  StreamSubscription<MagnetometerEvent>? _magSubscription;
-  StreamSubscription<AccelerometerEvent>? _accelSubscription;
-  // Latest accelerometer reading, used to tilt-compensate the compass.
-  // Defaults represent 'lying flat' so early magnetometer events
-  // (before the first accelerometer reading arrives) don't misbehave.
-  double _accelX = 0;
-  double _accelY = 0;
-  double _accelZ = 9.8;
+  StreamSubscription<CompassEvent>? _compassSubscription;
   final MapController _hudMapCtrl = MapController();
+  int _hudMapRebuild = 0;
+  bool _autoFollow = true;
   late AnimationController _arrowController;
   late Animation<double> _arrowAnimation;
 
@@ -4088,47 +4084,16 @@ class _HUDScreenState extends State<HUDScreen>
     _arrowAnimation =
         Tween<double>(begin: 0, end: 0).animate(_arrowController);
     _startTracking();
-    _accelSubscription = accelerometerEventStream(
-            samplingPeriod: SensorInterval.normalInterval)
-        .listen((AccelerometerEvent e) {
-      _accelX = e.x;
-      _accelY = e.y;
-      _accelZ = e.z;
-    });
-    _magSubscription = magnetometerEventStream().listen((event) {
-      if (!mounted) return;
-      final newHeading = _tiltCompensatedHeading(
-          event.x, event.y, event.z, _accelX, _accelY, _accelZ);
+    // flutter_compass uses the phone's own OS-level sensor fusion
+    // (manufacturer-calibrated), instead of hand-computed trig.
+    _compassSubscription = FlutterCompass.events?.listen((event) {
+      if (!mounted || event.heading == null) return;
+      final newHeading = event.heading!;
       // Only rebuild on a meaningful change to avoid jittery repaints
       if ((newHeading - _heading).abs() > 2) {
         setState(() => _heading = newHeading);
       }
     });
-  }
-
-  // Combines magnetometer + accelerometer to compute a compass heading
-  // that stays accurate when the phone is tilted, not just held flat.
-  // Returns degrees, 0-360, where 0 = magnetic north.
-  double _tiltCompensatedHeading(
-      double mx, double my, double mz, double ax, double ay, double az) {
-    // Normalize the accelerometer reading to a unit 'gravity' vector
-    final normA = sqrt(ax * ax + ay * ay + az * az);
-    if (normA == 0) return _heading; // avoid divide-by-zero, keep last value
-    final gx = ax / normA, gy = ay / normA, gz = az / normA;
-
-    // Device tilt angles from the gravity vector
-    final pitch = asin(-gx);
-    final roll = asin(gy / cos(pitch));
-
-    // Tilt-compensate the magnetometer reading using pitch/roll
-    final xh = mx * cos(pitch) + mz * sin(pitch);
-    final yh = mx * sin(roll) * sin(pitch) +
-        my * cos(roll) -
-        mz * sin(roll) * cos(pitch);
-
-    var heading = atan2(yh, xh) * (180 / pi);
-    heading = (heading + 360) % 360;
-    return heading;
   }
 
   void _startTracking() async {
@@ -4285,8 +4250,7 @@ class _HUDScreenState extends State<HUDScreen>
   @override
   void dispose() {
     _positionStream?.cancel();
-    _magSubscription?.cancel();
-    _accelSubscription?.cancel();
+    _compassSubscription?.cancel();
     _arrowController.dispose();
     super.dispose();
   }
@@ -4454,9 +4418,11 @@ class _HUDScreenState extends State<HUDScreen>
                           children: [
                             (_myPosition != null)
                             ? FlutterMap(
-                                key: ValueKey('hud_map_'
-                                    '${_myPosition!.latitude.toStringAsFixed(4)}_'
-                                    '${_myPosition!.longitude.toStringAsFixed(4)}'),
+                                key: ValueKey(_autoFollow
+                                    ? 'hud_map_auto_'
+                                        '${_myPosition!.latitude.toStringAsFixed(4)}_'
+                                        '${_myPosition!.longitude.toStringAsFixed(4)}'
+                                    : 'hud_map_manual_$_hudMapRebuild'),
                                 mapController: _hudMapCtrl,
                                 options: MapOptions(
                                   initialCenter: LatLng(
@@ -4540,6 +4506,71 @@ class _HUDScreenState extends State<HUDScreen>
                                       : 'Switch to satellite',
                                   onPressed: () => setState(
                                       () => _satelliteView = !_satelliteView),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 56,
+                              right: 8,
+                              child: Material(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                                child: IconButton(
+                                  icon: const Icon(Icons.center_focus_strong,
+                                      color: Colors.white),
+                                  tooltip: 'Recenter map',
+                                  onPressed: () =>
+                                      setState(() => _hudMapRebuild++),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 104,
+                              right: 8,
+                              child: Material(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                                child: IconButton(
+                                  icon: Icon(
+                                    _autoFollow
+                                        ? Icons.gps_fixed
+                                        : Icons.gps_not_fixed,
+                                    color: _autoFollow
+                                        ? Colors.lightBlueAccent
+                                        : Colors.white,
+                                  ),
+                                  tooltip: _autoFollow
+                                      ? 'Auto-follow: On'
+                                      : 'Auto-follow: Off',
+                                  onPressed: () => setState(
+                                      () => _autoFollow = !_autoFollow),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 8,
+                              left: 8,
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Transform.rotate(
+                                  angle: -_heading * pi / 180,
+                                  child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text('N',
+                                          style: TextStyle(
+                                              color: Colors.redAccent,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold)),
+                                      Icon(Icons.arrow_drop_up,
+                                          color: Colors.white, size: 20),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
