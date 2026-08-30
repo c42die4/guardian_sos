@@ -1882,6 +1882,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _mobilePhoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   int _notifyRadiusKm = 0; // 0 = everyone/unlimited
+  double _crashThresholdG = 50.0;
   String _familyCode = '';
 
   String _generateFamilyCode() {
@@ -1965,6 +1966,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _emailCtrl.text = d['email'] ?? '';
       _notifyRadiusKm = (d['notifyRadiusKm'] is int) ? d['notifyRadiusKm'] : 0;
       _familyCode = d['familyCode'] ?? '';
+      if (d['crashThresholdG'] is num) {
+        _crashThresholdG = (d['crashThresholdG'] as num).toDouble();
+      }
     }
     if (_familyCode.isEmpty &&
         currentCompany?.allowDependents == true &&
@@ -2005,6 +2009,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'mobilePhone': _mobilePhoneCtrl.text.trim(),
       'email': _emailCtrl.text.trim(),
       'notifyRadiusKm': _notifyRadiusKm,
+      'crashThresholdG': _crashThresholdG,
       'companyId': currentCompany?.id ?? '',
       'familyCode': _familyCode,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -2378,6 +2383,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         fontSize: 13,
                                         color: selected ? Colors.black : Colors.white70,
                                         fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  _sectionHeader(
+                    "Crash Sensitivity",
+                    Icons.warning_amber,
+                    subtitle:
+                        "How hard an impact needs to be before Crash Detection "
+                        "triggers. Lower it if you ride mostly smooth tar roads, "
+                        "raise it off-road where bumps and jolts are normal.",
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ['Normal', 50.0],
+                          ['Less Sensitive', 75.0],
+                          ['Off-Road', 100.0],
+                        ].map<Widget>((opt) {
+                          final selected = _crashThresholdG == opt[1];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () => setState(
+                                  () => _crashThresholdG = opt[1] as double),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? Colors.orange
+                                      : Colors.white10,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                      color: selected
+                                          ? Colors.orange
+                                          : Colors.white24),
+                                ),
+                                child: Text(opt[0] as String,
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: selected
+                                            ? Colors.black
+                                            : Colors.white70,
+                                        fontWeight: selected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal)),
                               ),
                             ),
                           );
@@ -2872,14 +2931,14 @@ class _SOSScreenState extends State<SOSScreen>
   StreamSubscription? _notificationSubscription;
 
   // Crash detection
-  bool _crashDetectionEnabled = false;
+  bool _crashDetectionEnabled = true;
   StreamSubscription? _accelSubscription;
   Timer? _crashCountdownTimer;
   bool _crashCountdownActive = false;
   int _crashCountdownSeconds = 60;
   DateTime? _lastHighGEvent;
   final AudioPlayer _crashBeepPlayer = AudioPlayer();
-  static const double _crashThresholdG = 12.0;
+  double _crashThresholdG = 50.0;
   static const double _gravity = 9.8;
 
   @override
@@ -2898,6 +2957,11 @@ class _SOSScreenState extends State<SOSScreen>
     _startNotificationListener();
     _checkForActiveAlert();
     _checkHuaweiWarning();
+    // Crash detection defaults to on - actually start listening now,
+    // not just show the toggle as on. The listener reads _crashThresholdG
+    // live on every sensor event, so it self-corrects once _loadProfile()
+    // finishes fetching the saved sensitivity a moment later.
+    if (_crashDetectionEnabled) _startCrashDetection();
   }
 
   Future<void> _checkForActiveAlert() async {
@@ -3117,7 +3181,13 @@ class _SOSScreenState extends State<SOSScreen>
         .doc(id)
         .get();
     if (doc.exists && mounted) {
-      setState(() => _nameController.text = doc.data()?['name'] ?? '');
+      setState(() {
+        _nameController.text = doc.data()?['name'] ?? '';
+        final savedThreshold = doc.data()?['crashThresholdG'];
+        if (savedThreshold is num) {
+          _crashThresholdG = savedThreshold.toDouble();
+        }
+      });
     }
   }
 
@@ -4206,7 +4276,8 @@ class _HUDScreenState extends State<HUDScreen>
       sumSin += sin(rad);
       sumCos += cos(rad);
     }
-    final smoothedBearing = atan2(sumSin, sumCos) * (180 / pi);
+    var smoothedBearing = atan2(sumSin, sumCos) * (180 / pi);
+    smoothedBearing = (smoothedBearing + 360) % 360;
 
     _arrowAnimation = Tween<double>(
       begin: _arrowAnimation.value,
