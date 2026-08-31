@@ -661,6 +661,7 @@ class CompanyConfig {
 
 CompanyConfig? currentCompany;
 String currentRole = 'client';
+double crashThresholdG = 50.0;
 
 // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // HELPERS
@@ -2016,6 +2017,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
     setState(() => _saving = false);
     if (mounted) {
+      crashThresholdG = _crashThresholdG;
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Profile saved successfully!")));
       Navigator.of(context).pop();
@@ -2405,9 +2407,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          ['Normal', 50.0],
-                          ['Less Sensitive', 75.0],
-                          ['Off-Road', 100.0],
+                          ['Low', 50.0],
+                          ['Medium', 75.0],
+                          ['High', 100.0],
                         ].map<Widget>((opt) {
                           final selected = _crashThresholdG == opt[1];
                           return Padding(
@@ -2938,8 +2940,8 @@ class _SOSScreenState extends State<SOSScreen>
   int _crashCountdownSeconds = 60;
   DateTime? _lastHighGEvent;
   final AudioPlayer _crashBeepPlayer = AudioPlayer();
-  double _crashThresholdG = 50.0;
   static const double _gravity = 9.8;
+  double _lastGForce = 0;
 
   @override
   void initState() {
@@ -3089,7 +3091,8 @@ class _SOSScreenState extends State<SOSScreen>
       final totalG =
           (e.x * e.x + e.y * e.y + e.z * e.z) / (_gravity * _gravity);
       final gForce = totalG.abs();
-      if (gForce >= _crashThresholdG) {
+      if (mounted) setState(() => _lastGForce = gForce);
+      if (gForce >= crashThresholdG) {
         if (!_crashCountdownActive && !_sosActive && mounted) {
           _triggerCrashCountdown();
         }
@@ -3185,7 +3188,7 @@ class _SOSScreenState extends State<SOSScreen>
         _nameController.text = doc.data()?['name'] ?? '';
         final savedThreshold = doc.data()?['crashThresholdG'];
         if (savedThreshold is num) {
-          _crashThresholdG = savedThreshold.toDouble();
+          crashThresholdG = savedThreshold.toDouble();
         }
       });
     }
@@ -4022,6 +4025,19 @@ class _SOSScreenState extends State<SOSScreen>
                       child: const Text(
                         'Hold here 2 seconds to test',
                         style: TextStyle(color: Colors.grey, fontSize: 11),
+                      ),
+                    ),
+                  if (_crashDetectionEnabled)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        // TEMPORARY DIAGNOSTIC - remove once sensitivity is confirmed working
+                        'live: ${_lastGForce.toStringAsFixed(1)}G   '
+                        'threshold: ${crashThresholdG.toStringAsFixed(0)}G',
+                        style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 11,
+                            fontFamily: 'monospace'),
                       ),
                     ),
                 ],
