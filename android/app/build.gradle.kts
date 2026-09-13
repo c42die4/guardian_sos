@@ -1,35 +1,29 @@
 import java.util.Properties
 import java.io.FileInputStream
-
 // Load key.properties
 val keyPropertiesFile = rootProject.file("key.properties")
 val keyProperties = Properties()
 if (keyPropertiesFile.exists()) {
     keyProperties.load(FileInputStream(keyPropertiesFile))
 }
-
 plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
 }
-
 android {
     namespace = "com.cyberwarriors.guardian_sos"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
-
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-
     kotlinOptions {
         jvmTarget = "11"
     }
-
     signingConfigs {
         create("release") {
             keyAlias = keyProperties["keyAlias"] as String
@@ -38,7 +32,6 @@ android {
             storePassword = keyProperties["storePassword"] as String
         }
     }
-
     defaultConfig {
         applicationId = "com.cyberwarriors.guardian_sos"
         minSdk = flutter.minSdkVersion
@@ -47,7 +40,6 @@ android {
         versionName = flutter.versionName
         multiDexEnabled = true
     }
-
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
@@ -58,7 +50,6 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
-
     flavorDimensions += "company"
     productFlavors {
         create("default") {
@@ -81,13 +72,16 @@ android {
             applicationId = "com.cyberwarriors.adventure_sos"
             resValue("string", "app_name", "Adventure SOS")
         }
+        create("afriforum") {
+            dimension = "company"
+            applicationId = "com.cyberwarriors.afriforum"
+            resValue("string", "app_name", "AfriForum SOS")
+        }
     }
 }
-
 flutter {
     source = "../.."
 }
-
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("androidx.multidex:multidex:2.0.1")

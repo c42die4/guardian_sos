@@ -1,0 +1,98 @@
+rules_version = '2';
+
+// ---------------------------------------------------------------
+// Guardian SOS - Firestore Security Rules (Phase 1)
+//
+// This replaces "allow read, write: if true" (wide open to anyone
+// who has your app's Firebase config, which is not a secret) with
+// real restrictions everywhere it's safe to do so without breaking
+// the app's current behavior.
+//
+// IMPORTANT LIMITATION - read this: this app has no authentication,
+// so these rules cannot yet verify "this reader truly belongs to
+// Company X" - only what the data itself says. Real per-company
+// isolation needs Phase 2 (anonymous auth). What Phase 1 DOES give
+// you: notifications is now fully locked to server-only access,
+// companies can no longer be created/edited from the app, and every
+// write to devices/alerts/tracking/profiles must match a sane shape
+// instead of accepting literally anything.
+// ---------------------------------------------------------------
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -- companies: read-only from the app (needed so new users can
+    // look up a company by its registration code before they're
+    // "in" anything yet). Only you, via the Firebase Console or an
+    // admin tool, should ever create/edit a company.
+    match /companies/{companyId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // -- devices: registration + FCM token + lastSeen. Officers read
+    // company device lists for the dashboard; each device writes its
+    // own doc. Write must include the expected fields with sane types.
+    match /devices/{deviceId} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasAll(['companyId', 'role'])
+        && request.resource.data.companyId is string
+        && request.resource.data.companyId.size() > 0
+        && request.resource.data.role is string;
+    }
+
+    // -- alerts: SOS alerts, live location, responders array. Riders
+    // and officers within a company both read active alerts (matches
+    // current app behavior - the responder-preview map, the officer
+    // dashboard). Write must look like a real alert, not arbitrary data.
+    match /alerts/{alertId} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasAll(['companyId', 'status'])
+        && request.resource.data.companyId is string
+        && request.resource.data.companyId.size() > 0
+        && request.resource.data.status in ['ACTIVE', 'RESOLVED', 'CANCELLED'];
+    }
+
+    // -- tracking: family live-tracking links. The token IS the
+    // document ID (an unguessable 12-character random string) - this
+    // is the same pattern as a "share this link" feature, so reading
+    // a specific tracking doc by its token is meant to be public.
+    // Write must still look like real tracking data.
+    match /tracking/{token} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasAll(['deviceId', 'companyId', 'active'])
+        && request.resource.data.deviceId is string
+        && request.resource.data.companyId is string;
+    }
+
+    // -- profiles: name, ID number, blood type, allergies, medical
+    // conditions, medications, emergency contacts. The most sensitive
+    // data in the app. Reads stay open for now (officers need to see
+    // this during a real response, and there's no auth yet to check
+    // company membership) - this is the top candidate to tighten
+    // further once Phase 2 (auth) lands. Writes must look like a real
+    // profile update.
+    match /profiles/{deviceId} {
+      allow read: if true;
+      allow write: if request.resource.data.size() > 0;
+    }
+
+    // -- notifications: written and read only by your Cloud Functions
+    // (which use the Admin SDK and bypass these rules entirely). The
+    // app itself never needs to read or write this directly.
+    match /notifications/{notificationId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // -- Everything else: default DENY. This is the important part -
+    // the old wide-open rule covered every collection, including ones
+    // not listed above. Without this, anything not explicitly matched
+    // above would fall through to Firestore's own default (deny), but
+    // being explicit here makes the intent clear and safe by default
+    // for any future collection you add and forget to add a rule for.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

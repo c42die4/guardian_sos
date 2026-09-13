@@ -26,6 +26,25 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:293568464040:android:27145cc416766e81fd2e9d",
+        "android_client_info": {
+          "package_name": "com.cyberwarriors.afriforum"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGApwIGZ1UVQY5Vpdv44QHOwpOrXLogqM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:293568464040:android:dbf94be6003a6ccafd2e9d",
         "android_client_info": {
           "package_name": "com.cyberwarriors.guardian_sos"

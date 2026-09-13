@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -85,9 +85,7 @@ Uint8List _generateBeepTone({int frequency = 900, int durationMs = 150, int samp
   return byteData.buffer.asUint8List();
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // NOTIFICATIONS
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 final FlutterLocalNotificationsPlugin _notifications =
     FlutterLocalNotificationsPlugin();
 
@@ -185,7 +183,6 @@ Future<void> showAlertNotification(String name, String location,
 }
 
 
-// ════════════════════════════════════════════════════════════════════
 // FAMILY TRACKING HELPERS
 
 double _distanceKm(double lat1, double lng1, double lat2, double lng2) {
@@ -254,15 +251,8 @@ Future<void> _updateTrackingStatus(String deviceId, String status, {double? lat,
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // ESCALATING NOTIFICATION MANAGER
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // This class manages escalating reminders for officers about unresolved SOS alerts.
-// Schedule:
-//   0  - ├à 60s      ├ó├é┬á remind every 10s
-//   60s  - ├à 10min  ├ó├é┬á remind every 60s
-//   10min  - ├à 60min├ó├é┬á remind every 10min
-//   60min+       ├ó├é┬á remind every 60min
 class SOSEscalationManager {
   // Map of alertId -> timer for that alert
   static final Map<String, Timer> _timers = {};
@@ -390,9 +380,7 @@ class SOSEscalationManager {
   static Set<String> get trackedAlertIds => _timers.keys.toSet();
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // FOREGROUND TASK HANDLER
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(LocationTaskHandler());
@@ -536,9 +524,7 @@ class LocationTaskHandler extends TaskHandler {
   void onNotificationPressed() {}
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // FOREGROUND SERVICE HELPERS
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 void initForegroundTask() {
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
@@ -591,9 +577,7 @@ Future<void> stopLocationService() async {
   await FlutterForegroundTask.stopService();
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // COMPANY CONFIG MODEL
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class CompanyConfig {
   final String id;
   final String name;
@@ -607,6 +591,7 @@ class CompanyConfig {
   final String companyType;
   final bool allowDependents;
   final int maxDependentsPerMember;
+  final String watchGroupId;
 
   bool get isAdventure => companyType == 'adventure';
 
@@ -623,6 +608,7 @@ class CompanyConfig {
     this.companyType = 'standard',
     this.allowDependents = false,
     this.maxDependentsPerMember = 4,
+    this.watchGroupId = '',
   });
 
   bool get isTrialExpired {
@@ -655,17 +641,48 @@ class CompanyConfig {
       companyType: data['companyType'] ?? 'standard',
       allowDependents: data['allowDependents'] ?? false,
       maxDependentsPerMember: data['maxDependentsPerMember'] ?? 4,
+      watchGroupId: data['watchGroupId'] ?? '',
     );
   }
+}
+
+// WATCH GROUP CONFIG MODEL
+// A watch group is a region/district-level dispatch center that receives
+// alerts from every company (farm) that lists this group's id in its own
+// companies/{id}.watchGroupId field. Membership is a pointer FROM the
+// company TO the group, not an array on the group, so it scales past
+// Firestore's whereIn limits with no extra query complexity.
+class WatchGroupConfig {
+  final String id;
+  final String name;
+
+  WatchGroupConfig({required this.id, required this.name});
+
+  factory WatchGroupConfig.fromFirestore(String id, Map<String, dynamic> data) {
+    return WatchGroupConfig(
+      id: id,
+      name: data['name'] ?? 'Watch Group',
+    );
+  }
+}
+
+WatchGroupConfig? currentWatchGroup;
+
+Future<String?> getSavedWatchGroupId() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString('watch_group_id');
+}
+
+Future<void> saveWatchGroupId(String id) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('watch_group_id', id);
 }
 
 CompanyConfig? currentCompany;
 String currentRole = 'client';
 double crashThresholdG = 50.0;
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // HELPERS
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 Future<String> getDeviceId() async {
   final prefs = await SharedPreferences.getInstance();
   String? id = prefs.getString('device_id');
@@ -697,7 +714,6 @@ Future<void> saveRole(String role) async {
   await prefs.setString('device_role', role);
 }
 
-// ├ó├ó Radius helpers ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 const double kDefaultRadiusKm = 50.0;
 
 Future<double> getSavedRadius() async {
@@ -743,6 +759,7 @@ Future<void> saveCompanyData(CompanyConfig company) async {
   await prefs.setBool('company_is_trial', company.isTrial);
   await prefs.setString('company_trial_ends', company.trialEnds);
   await prefs.setString('company_type', company.companyType);
+  await prefs.setString('company_watch_group_id', company.watchGroupId);
 }
 
 Future<CompanyConfig?> getCompanyData(String companyId) async {
@@ -765,6 +782,7 @@ Future<CompanyConfig?> getCompanyData(String companyId) async {
     isTrial: prefs.getBool('company_is_trial') ?? false,
     trialEnds: prefs.getString('company_trial_ends') ?? '',
     companyType: prefs.getString('company_type') ?? 'standard',
+    watchGroupId: prefs.getString('company_watch_group_id') ?? '',
   );
 }
 
@@ -817,9 +835,7 @@ Future<void> sendWhatsAppAlert({
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // CONNECTIVITY
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 Future<void> saveFcmToken(String deviceId, String companyId, String role) async {
   try {
     final token = await FirebaseMessaging.instance.getToken();
@@ -899,9 +915,7 @@ class SOSApp extends StatelessWidget {
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // APP ENTRY
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class AppEntry extends StatefulWidget {
   const AppEntry({super.key});
   @override
@@ -919,6 +933,26 @@ class _AppEntryState extends State<AppEntry> {
 
   Future<void> _initialize() async {
     try {
+      // A dispatcher isn't tied to a single company, so check for that
+      // saved session first and short-circuit the normal company flow.
+      final savedRole = await getSavedRole();
+      if (savedRole == 'dispatcher') {
+        final watchGroupId = await getSavedWatchGroupId();
+        if (watchGroupId != null) {
+          final groupDoc = await FirebaseFirestore.instance
+              .collection('watch_groups')
+              .doc(watchGroupId)
+              .get();
+          if (groupDoc.exists) {
+            currentWatchGroup =
+                WatchGroupConfig.fromFirestore(groupDoc.id, groupDoc.data()!);
+            currentRole = 'dispatcher';
+            setState(() => _loading = false);
+            return;
+          }
+        }
+      }
+
       String? companyId = await getSavedCompanyId();
 
       // On web, fall back to localStorage if SharedPreferences is empty
@@ -1004,6 +1038,9 @@ class _AppEntryState extends State<AppEntry> {
         ),
       );
     }
+    if (currentRole == 'dispatcher' && currentWatchGroup != null) {
+      return DispatchCenterShell(watchGroup: currentWatchGroup!);
+    }
     if (currentCompany == null) return const CompanyRegistrationScreen();
     if (!currentCompany!.isActive) {
       return SubscriptionSuspendedScreen(company: currentCompany!);
@@ -1015,9 +1052,7 @@ class _AppEntryState extends State<AppEntry> {
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // COMPANY REGISTRATION SCREEN
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class CompanyRegistrationScreen extends StatefulWidget {
   const CompanyRegistrationScreen({super.key});
   @override
@@ -1159,6 +1194,37 @@ class _CompanyRegistrationScreenState
       _error = null;
     });
     try {
+      final watchGroupQuery = await FirebaseFirestore.instance
+          .collection('watch_groups')
+          .where('dispatcherCode', isEqualTo: code)
+          .limit(1)
+          .get();
+      if (watchGroupQuery.docs.isNotEmpty) {
+        final groupDoc = watchGroupQuery.docs.first;
+        final group =
+            WatchGroupConfig.fromFirestore(groupDoc.id, groupDoc.data());
+        final deviceId = await getDeviceId();
+        await FirebaseFirestore.instance
+            .collection('devices')
+            .doc(deviceId)
+            .set({
+          'watchGroupId': groupDoc.id,
+          'role': 'dispatcher',
+          'registeredAt': FieldValue.serverTimestamp(),
+          'lastSeen': FieldValue.serverTimestamp(),
+          'isActive': true,
+        });
+        await saveWatchGroupId(groupDoc.id);
+        await saveRole('dispatcher');
+        currentWatchGroup = group;
+        currentRole = 'dispatcher';
+        if (mounted) {
+          Navigator.of(context).pushReplacement(MaterialPageRoute(
+              builder: (_) => DispatchCenterShell(watchGroup: group)));
+        }
+        return;
+      }
+
       final familyQuery = await FirebaseFirestore.instance
           .collection('profiles')
           .where('familyCode', isEqualTo: code)
@@ -1350,9 +1416,7 @@ class _CompanyRegistrationScreenState
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // TRIAL EXPIRED SCREEN
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class TrialExpiredScreen extends StatelessWidget {
   final CompanyConfig company;
   const TrialExpiredScreen({super.key, required this.company});
@@ -1405,13 +1469,14 @@ class TrialExpiredScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.call),
-                  label: const Text('Call Cyber Warriors',
+                  icon: const Icon(Icons.chat),
+                  label: const Text('WhatsApp Cyber Warriors',
                       style: TextStyle(fontSize: 16)),
                   style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.grey[800]),
-                  onPressed: () =>
-                      launchUrl(Uri.parse('tel:+27000000000')),
+                  onPressed: () => launchUrl(
+                      Uri.parse('https://wa.me/27835065924'),
+                      mode: LaunchMode.externalApplication),
                 ),
               ),
               const SizedBox(height: 12),
@@ -1429,9 +1494,7 @@ class TrialExpiredScreen extends StatelessWidget {
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // SUBSCRIPTION SUSPENDED SCREEN
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class SubscriptionSuspendedScreen extends StatelessWidget {
   final CompanyConfig company;
   const SubscriptionSuspendedScreen({super.key, required this.company});
@@ -1464,13 +1527,14 @@ class SubscriptionSuspendedScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.call),
+                  icon: const Icon(Icons.chat),
                   label: const Text("CONTACT SUPPORT",
                       style: TextStyle(fontSize: 16)),
                   style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange[800]),
-                  onPressed: () =>
-                      launchUrl(Uri.parse('tel:+27000000000')),
+                  onPressed: () => launchUrl(
+                      Uri.parse('https://wa.me/27835065924'),
+                      mode: LaunchMode.externalApplication),
                 ),
               ),
             ],
@@ -1481,9 +1545,7 @@ class SubscriptionSuspendedScreen extends StatelessWidget {
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // APP SHELL
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class AppShell extends StatefulWidget {
   final CompanyConfig company;
   const AppShell({super.key, required this.company});
@@ -1844,9 +1906,7 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // PROFILE SCREEN
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class ProfileScreen extends StatefulWidget {
   final bool isFirstTime;
   const ProfileScreen({super.key, this.isFirstTime = false});
@@ -2487,6 +2547,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         MaterialPageRoute(
                             builder: (_) => const VersionScreen())),
                   ),
+                  ListTile(
+                    leading: const Icon(Icons.chat, color: Colors.green),
+                    title: const Text('Contact Support',
+                        style: TextStyle(color: Colors.white)),
+                    subtitle: const Text('WhatsApp us if something goes wrong',
+                        style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    trailing: const Icon(Icons.chevron_right,
+                        color: Colors.grey),
+                    onTap: () => launchUrl(
+                        Uri.parse('https://wa.me/27835065924'),
+                        mode: LaunchMode.externalApplication),
+                  ),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -2495,9 +2567,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // SOS ACTIVE SCREEN
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class SOSActiveScreen extends StatefulWidget {
   final CompanyConfig company;
   final String alertId;
@@ -2896,9 +2966,7 @@ class _SOSActiveScreenState extends State<SOSActiveScreen>
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // SOS SCREEN
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class SOSScreen extends StatefulWidget {
   final CompanyConfig company;
   const SOSScreen({super.key, required this.company});
@@ -3402,6 +3470,7 @@ class _SOSScreenState extends State<SOSScreen>
         'isDependent': currentRole == 'dependent',
         'relationship': _dependentRelationship,
         'linkedMemberName': _dependentLinkedMemberName,
+        'watchGroupId': widget.company.watchGroupId,
       });
 
       _activeAlertId = doc.id;
@@ -3541,6 +3610,7 @@ class _SOSScreenState extends State<SOSScreen>
         'companyId': widget.company.id,
         'deviceId': deviceId,
         'customMessage': customMessage,
+        'watchGroupId': widget.company.watchGroupId,
       });
       await startLocationService(doc.id, widget.company.id);
       Vibration.vibrate(duration: 500);
@@ -4113,9 +4183,7 @@ class _SOSScreenState extends State<SOSScreen>
     );
   }
 }
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // HUD SCREEN
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class HUDScreen extends StatefulWidget {
   final double targetLat;
   final double targetLng;
@@ -4772,9 +4840,7 @@ class _HUDScreenState extends State<HUDScreen>
   }
 }
 
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 // OFFICER DASHBOARD
-// ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
 class AlertHistoryScreen extends StatefulWidget {
   final CompanyConfig company;
   const AlertHistoryScreen({super.key, required this.company});
@@ -4913,9 +4979,6 @@ class _AlertHistoryScreenState extends State<AlertHistoryScreen> {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// OFFICER DASHBOARD
-// ────────────────────────────────────────────────────────────────────────────
 class FamilyScreen extends StatefulWidget {
   final CompanyConfig company;
   const FamilyScreen({super.key, required this.company});
@@ -5160,9 +5223,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // VERSION / ABOUT SCREEN
-// ────────────────────────────────────────────────────────────────────────────
 class VersionScreen extends StatefulWidget {
   const VersionScreen({super.key});
 
@@ -5352,9 +5413,6 @@ class _VersionScreenState extends State<VersionScreen> {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// OFFICER DASHBOARD
-// ────────────────────────────────────────────────────────────────────────────
 class _PulsingRespondButton extends StatefulWidget {
   final bool amResponding;
   final bool pulse;
@@ -5626,9 +5684,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     }
   }
 
-  // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
   // RESOLVE ALERT  -  logs officer name + timestamp
-  // ├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó├ó
   Future<void> _markResponding(String id) async {
     try {
       final deviceId = await getDeviceId();
@@ -5790,7 +5846,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('├ó Alert resolved by $officerName'),
+            content: Text('Alert resolved by $officerName'),
             backgroundColor: Colors.green[800],
           ),
         );
@@ -6752,11 +6808,293 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   }
 }
 
+// DISPATCH CENTER — regional/district monitoring view for a watch group.
+// A single dispatcher watches alerts from every company that has set its
+// own companies/{id}.watchGroupId to this group's id.
+class DispatchCenterShell extends StatelessWidget {
+  final WatchGroupConfig watchGroup;
+  const DispatchCenterShell({super.key, required this.watchGroup});
 
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData(brightness: Brightness.dark, primarySwatch: Colors.blue),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('${watchGroup.name} — Dispatch'),
+        ),
+        body: DispatchCenterDashboard(watchGroup: watchGroup),
+      ),
+    );
+  }
+}
 
+class DispatchCenterDashboard extends StatefulWidget {
+  final WatchGroupConfig watchGroup;
+  const DispatchCenterDashboard({super.key, required this.watchGroup});
 
+  @override
+  State<DispatchCenterDashboard> createState() =>
+      _DispatchCenterDashboardState();
+}
 
+class _DispatchCenterDashboardState extends State<DispatchCenterDashboard> {
+  final MapController _mapCtrl = MapController();
+  bool _mapReady = false;
+  Set<String> _knownAlertIds = {};
+  bool _isMuted = false;
 
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      if (mounted) {
+        setState(() => _isMuted = prefs.getBool('sirenMuted') ?? false);
+      }
+    });
+  }
 
+  IconData _alertIcon(String? helpType) {
+    switch (helpType) {
+      case 'CRASH':
+        return Icons.car_crash;
+      case 'LOST':
+        return Icons.explore_off;
+      case 'FUEL':
+        return Icons.local_gas_station;
+      case 'BREAKDOWN':
+        return Icons.build;
+      case 'MEDICAL':
+        return Icons.medical_services;
+      default:
+        return Icons.warning;
+    }
+  }
 
+  Color _alertColor(String? helpType) {
+    switch (helpType) {
+      case 'LOST':
+        return Colors.blue;
+      case 'FUEL':
+        return Colors.orange;
+      case 'BREAKDOWN':
+        return Colors.purple;
+      case 'MEDICAL':
+        return Colors.red;
+      default:
+        return Colors.redAccent;
+    }
+  }
 
+  String _lastSeen(dynamic timestamp) {
+    if (timestamp == null) return "Just now";
+    final dt = (timestamp as Timestamp).toDate();
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return "${diff.inSeconds}s ago";
+    if (diff.inMinutes < 60) return "${diff.inMinutes}m ago";
+    return "${diff.inHours}h ago";
+  }
+
+  Future<void> _markRadioDispatched(String alertId) async {
+    final deviceId = await getDeviceId();
+    final profileDoc = await FirebaseFirestore.instance
+        .collection('profiles')
+        .doc(deviceId)
+        .get();
+    final dispatcherName = (profileDoc.exists &&
+            (profileDoc.data()?['name'] ?? '').isNotEmpty)
+        ? profileDoc.data()!['name'] as String
+        : 'Dispatcher';
+    await FirebaseFirestore.instance.collection('alerts').doc(alertId).update({
+      'radioDispatched': true,
+      'radioDispatchedBy': dispatcherName,
+      'radioDispatchedAt': FieldValue.serverTimestamp(),
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Marked as dispatched on radio net')),
+      );
+    }
+  }
+
+  void _zoomToAlerts(List<QueryDocumentSnapshot> alerts) {
+    if (!_mapReady || alerts.isEmpty) return;
+    final points = alerts.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return LatLng(data['lat'], data['lng']);
+    }).toList();
+    if (points.length == 1) {
+      _mapCtrl.move(points.first, 15.0);
+    } else {
+      _mapCtrl.fitCamera(CameraFit.coordinates(
+          coordinates: points, padding: const EdgeInsets.all(80)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('alerts')
+          .where('status', isEqualTo: 'ACTIVE')
+          .where('watchGroupId', isEqualTo: widget.watchGroup.id)
+          .orderBy('timestamp', descending: false)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final alerts = snapshot.data!.docs;
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final currentIds = alerts.map((d) => d.id).toSet();
+          final newIds = currentIds.difference(_knownAlertIds);
+          final isFirstLoad = _knownAlertIds.isEmpty && alerts.isNotEmpty;
+          if ((isFirstLoad || newIds.isNotEmpty) && !_isMuted) {
+            SystemSound.play(SystemSoundType.alert);
+            Vibration.vibrate(pattern: [0, 500, 200, 500, 200, 500]);
+          }
+          if ((isFirstLoad || newIds.isNotEmpty) && _mapReady) {
+            _zoomToAlerts(alerts);
+          }
+          _knownAlertIds = currentIds;
+        });
+
+        return Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: FlutterMap(
+                mapController: _mapCtrl,
+                options: MapOptions(
+                  initialCenter: const LatLng(-28.5, 24.7), // roughly central SA
+                  initialZoom: 6,
+                  onMapReady: () {
+                    setState(() => _mapReady = true);
+                    if (alerts.isNotEmpty) _zoomToAlerts(alerts);
+                  },
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.cyberwarriors.sos',
+                    maxZoom: 19,
+                  ),
+                  MarkerLayer(
+                    markers: alerts.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return Marker(
+                        point: LatLng(data['lat'], data['lng']),
+                        width: 60,
+                        height: 70,
+                        child: Column(
+                          children: [
+                            Icon(_alertIcon(data['helpType'] as String?),
+                                color: _alertColor(data['helpType'] as String?),
+                                size: 40),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                  color: Colors.black87,
+                                  borderRadius: BorderRadius.circular(4)),
+                              child: Text(
+                                data['userName'] ?? 'User',
+                                style: const TextStyle(
+                                    fontSize: 10, color: Colors.white),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 1,
+              child: Container(
+                color: Colors.grey[900],
+                child: alerts.isEmpty
+                    ? const Center(
+                        child: Text('No active alerts in this region',
+                            style: TextStyle(color: Colors.grey)))
+                    : ListView.builder(
+                        itemCount: alerts.length,
+                        itemBuilder: (context, index) {
+                          final doc = alerts[index];
+                          final data = doc.data() as Map<String, dynamic>;
+                          final radioDispatched =
+                              data['radioDispatched'] == true;
+                          return Card(
+                            color: Colors.grey[850],
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(_alertIcon(data['helpType'] as String?),
+                                          color: _alertColor(
+                                              data['helpType'] as String?)),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          '${data['helpType'] ?? 'SOS'} — ${data['userName'] ?? 'User'}',
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(_lastSeen(data['timestamp']),
+                                      style:
+                                          const TextStyle(color: Colors.grey)),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      icon: Icon(
+                                          radioDispatched
+                                              ? Icons.check_circle
+                                              : Icons.radio,
+                                          size: 16),
+                                      label: Text(
+                                        radioDispatched
+                                            ? 'Dispatched (${data['radioDispatchedBy'] ?? ''})'
+                                            : 'Mark radio dispatched',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: radioDispatched
+                                            ? Colors.grey[700]
+                                            : Colors.orange[800],
+                                      ),
+                                      onPressed: radioDispatched
+                                          ? null
+                                          : () => _markRadioDispatched(doc.id),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

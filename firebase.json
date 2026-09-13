@@ -16,6 +16,10 @@
         "destination": "/join/index.html"
       },
       {
+        "source": "/about/**",
+        "destination": "/about/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -68,5 +72,8 @@
         "*.local"
       ]
     }
-  ]
+  ],
+  "firestore": {
+    "rules": "firestore.rules"
+  }
 }

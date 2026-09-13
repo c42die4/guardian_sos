@@ -43,6 +43,7 @@ print('Folders ready')
 # ─────────────────────────────────────────────────────────────────
 adventure_apk = 'build\\app\\outputs\\flutter-apk\\app-adventure-release.apk'
 hd_apk = 'build\\app\\outputs\\flutter-apk\\app-highway_devils-release.apk'
+afriforum_apk = 'build\\app\\outputs\\flutter-apk\\app-afriforum-release.apk'
 
 if os.path.exists(adventure_apk):
     shutil.copy(adventure_apk, 'build\\web\\apk\\adventure.apk')
@@ -56,12 +57,19 @@ if os.path.exists(hd_apk):
 else:
     print('  [SKIP] Highway Devils APK not found')
 
+if os.path.exists(afriforum_apk):
+    shutil.copy(afriforum_apk, 'build\\web\\apk\\afriforum.apk')
+    print('  [OK] afriforum.apk')
+else:
+    print('  [SKIP] AfriForum APK not found — run flutter build apk --flavor afriforum --release first')
+
 # ─────────────────────────────────────────────────────────────────
 # Step 3 — Copy join pages from Downloads (handles duplicates)
 # ─────────────────────────────────────────────────────────────────
 pages = {
     'adventure-company.html': 'adventure-company.html',
     'highway-devils.html': 'highway-devils.html',
+    'afriforum.html': 'afriforum.html',
 }
 
 for search_name, save_name in pages.items():
@@ -100,5 +108,7 @@ subprocess.run(['firebase', 'deploy', '--only', 'hosting'], shell=True)
 print('\nAll live at:')
 print('  https://sos.cyberwarriors.co.za/join/adventure-company.html')
 print('  https://sos.cyberwarriors.co.za/join/highway-devils.html')
+print('  https://sos.cyberwarriors.co.za/join/afriforum.html')
 print('  https://sos.cyberwarriors.co.za/apk/adventure.apk')
 print('  https://sos.cyberwarriors.co.za/apk/highway-devils.apk')
+print('  https://sos.cyberwarriors.co.za/apk/afriforum.apk')

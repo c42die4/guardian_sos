@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Guardian SOS — AfriForum SOS</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0a0a0a;color:#fff;max-width:480px;margin:0 auto}
+
+.hero-img{width:100%;height:220px;background:#001a08;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px}
+.hero-img svg{opacity:0.15}
+.hero-img-label{font-size:12px;color:#666;letter-spacing:1px;text-transform:uppercase;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#000a;padding:4px 12px;border-radius:20px;white-space:nowrap}
+.hero-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(180deg,#2d6a4f22 0%,#0a0a0a88 70%,#0a0a0a 100%)}
+
+.header{padding:20px 16px 16px;text-align:center;margin-top:-40px;position:relative;z-index:2}
+.company-badge{display:inline-flex;align-items:center;gap:8px;background:#2d6a4f18;border:1px solid #2d6a4f55;border-radius:30px;padding:6px 14px;margin-bottom:14px}
+.company-dot{width:8px;height:8px;border-radius:50%;background:#2d6a4f;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.company-name{font-size:12px;color:#40916c;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+h1{font-size:26px;font-weight:800;letter-spacing:-0.5px;margin-bottom:6px}
+h1 span{color:#40916c}
+.tagline{font-size:14px;color:#999;line-height:1.5;margin-bottom:0;font-style:italic}
+
+.trial-banner{margin:0 16px 16px;padding:10px 14px;background:#2d6a4f14;border:1px solid #2d6a4f44;border-radius:10px;font-size:12px;color:#74c69d;text-align:center;line-height:1.5}
+
+.divider{height:1px;background:linear-gradient(90deg,transparent,#2d6a4f44,transparent);margin:20px 0}
+
+.steps-section{padding:0 16px 20px}
+.steps-title{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;text-align:center}
+.step{display:flex;gap:12px;align-items:flex-start;margin-bottom:16px}
+.step:last-child{margin-bottom:0}
+.step-num{width:32px;height:32px;border-radius:50%;background:#2d6a4f;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-text h3{font-size:14px;font-weight:600;margin-bottom:3px}
+.step-text p{font-size:13px;color:#888;line-height:1.5}
+
+.cta-section{padding:0 16px 16px}
+.download-btn{display:flex;align-items:center;justify-content:center;gap:10px;background:#2d6a4f;color:#fff;text-decoration:none;padding:16px;border-radius:14px;font-size:16px;font-weight:700;margin-bottom:10px;-webkit-tap-highlight-color:transparent}
+.download-btn:active{background:#245a41}
+.download-btn-sub{font-size:11px;font-weight:400;opacity:0.75;display:block;margin-top:2px}
+.install-note{background:#2d6a4f11;border:1px solid #2d6a4f33;border-radius:10px;padding:10px 14px;font-size:12px;color:#74c69d;line-height:1.5;margin-bottom:14px}
+
+.code-card{background:#001208;border:1px solid #0a2a1a;border-radius:14px;padding:14px 16px;margin-bottom:14px}
+.code-card-label{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.code-row{display:flex;justify-content:space-between;align-items:center}
+.code-type{font-size:13px;color:#888}
+.code-val{font-family:monospace;font-size:16px;font-weight:700;color:#40916c;background:#2d6a4f11;padding:8px 14px;border-radius:10px;border:1px solid #2d6a4f33;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background 0.15s}
+.code-val:active{background:#2d6a4f33}
+.code-copied{font-size:11px;color:#44cc44;text-align:center;margin-top:8px;height:16px}
+
+.action-img{width:calc(100% - 32px);height:140px;background:#001208;border-radius:14px;margin:0 16px 16px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;border:1px solid #0a2a1a}
+.action-img svg{opacity:0.12}
+.action-img-label{font-size:11px;color:#555;letter-spacing:1px;text-transform:uppercase}
+
+.features{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 16px}
+.feature{background:#001208;border:1px solid #0a1a10;border-radius:12px;padding:12px;text-align:center}
+.feature-icon{font-size:24px;margin-bottom:6px}
+.feature-text{font-size:11px;color:#777;line-height:1.4}
+
+.web-link{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 16px 16px;padding:13px;border-radius:12px;border:1px solid #2d6a4f44;color:#40916c;text-decoration:none;font-size:13px;font-weight:600;-webkit-tap-highlight-color:transparent}
+.web-link:active{background:#2d6a4f11}
+
+.support-card{margin:0 16px 16px;padding:14px 16px;background:#001208;border:1px solid #0a2a1a;border-radius:14px;text-align:center}
+.support-card h3{font-size:13px;margin-bottom:6px;color:#eee}
+.support-card p{font-size:12px;color:#888;line-height:1.5;margin-bottom:10px}
+.support-btn{display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;-webkit-tap-highlight-color:transparent}
+
+.footer{text-align:center;padding:16px;border-top:1px solid #0a1a10;font-size:11px;color:#444;line-height:1.8}
+.footer a{color:#40916c;text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="hero-img" style="background:#0a0a0a">
+  <img src="https://firebasestorage.googleapis.com/v0/b/guardian-os-80042.firebasestorage.app/o/afriforum-logo-transparent.png?alt=media&token=b3bb702d-fe7a-42be-9847-f0797afd4dc7"
+       alt="AfriForum SOS" style="max-width:220px;max-height:140px;object-fit:contain" />
+  <div class="hero-overlay"></div>
+</div>
+
+<div class="header">
+  <div class="company-badge">
+    <div class="company-dot"></div>
+    <div class="company-name">AfriForum SOS</div>
+  </div>
+  <h1>Guardian <span>SOS</span></h1>
+  <p class="tagline">Real-time emergency response, built for community safety.</p>
+</div>
+
+<div class="trial-banner">
+  🕐 This is a 30-day evaluation access. Full details in your agreement with Cyber Warriors CC.
+</div>
+
+<div class="divider"></div>
+
+<div class="steps-section">
+  <div class="steps-title">Get set up in 3 steps</div>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <h3>Download &amp; install the app</h3>
+      <p>Tap the button below. If Android asks tap <strong>Install anyway</strong> — it's safe, just not on Play Store yet.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <h3>Enter your member code</h3>
+      <p>Open the app and enter the code below. Tap it to copy automatically.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <h3>Fill in your profile</h3>
+      <p>Add your mobile number so a responder can reach you directly in an emergency.</p>
+    </div>
+  </div>
+</div>
+
+<div class="cta-section">
+      <a class="download-btn" href="https://sos.cyberwarriors.co.za/apk/afriforum.apk">
+    📲 Download Guardian SOS
+    <span class="download-btn-sub">Android APK · Free (evaluation access)</span>
+  </a>
+  <div class="install-note">⚠ When Android shows a warning, tap <strong>"Install anyway"</strong> — the app is safe.</div>
+</div>
+
+<div style="padding:0 16px">
+  <div class="code-card">
+    <div class="code-card-label">Your registration code — tap to copy</div>
+    <div class="code-row">
+      <span class="code-type">Member code</span>
+      <span class="code-val" onclick="copyCode('AFRI-MEMBER-2026')">AFRI-MEMBER-2026</span>
+    </div>
+    <div class="code-copied" id="copied"></div>
+  </div>
+</div>
+
+<div class="action-img">
+  <svg width="60" height="50" viewBox="0 0 60 50" fill="none">
+    <path d="M5 35 Q15 10 30 20 Q45 30 55 15" stroke="#fff" stroke-width="1.5" fill="none"/>
+    <circle cx="10" cy="32" r="5" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="50" cy="18" r="5" stroke="#fff" stroke-width="1.5"/>
+    <path d="M0 45 L60 45" stroke="#fff" stroke-width="1" opacity="0.2"/>
+  </svg>
+  <div class="action-img-label">📷 Your photo here</div>
+</div>
+
+<div class="features">
+  <div class="feature">
+    <div class="feature-icon">🗺</div>
+    <div class="feature-text">Coordinator sees all members live on map</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">🚨</div>
+    <div class="feature-text">SOS &amp; automatic crash detection</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">⛽</div>
+    <div class="feature-text">Lost · Breakdown · Medical alerts</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">📞</div>
+    <div class="feature-text">Coordinator calls you directly — one tap</div>
+  </div>
+</div>
+
+<a class="web-link" href="https://sos.cyberwarriors.co.za">
+  🖥 Coordinators — monitor from any browser
+</a>
+
+<div class="support-card">
+  <h3>Something not working?</h3>
+  <p>If anything goes wrong during the evaluation — app issue, join code problem, or anything else — reach out directly and I'll sort it out.</p>
+  <a class="support-btn" href="https://wa.me/27835065924">💬 WhatsApp 083 506 5924</a>
+</div>
+
+<div class="footer">
+  AfriForum SOS — 30-day evaluation<br>
+  Safety powered by <a href="https://cyberwarriors.co.za">Cyber Warriors CC</a><br>
+  Need help? <a href="https://wa.me/27835065924">WhatsApp 083 506 5924</a> · Christo Prinsloo
+</div>
+
+<script>
+function copyCode(code) {
+  navigator.clipboard.writeText(code).then(() => {
+    const el = document.getElementById('copied');
+    el.textContent = '✓ Copied to clipboard!';
+    setTimeout(() => el.textContent = '', 2500);
+  }).catch(() => {
+    const el = document.getElementById('copied');
+    el.textContent = code;
+  });
+}
+</script>
+</body>
+</html>
